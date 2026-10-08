@@ -60,14 +60,27 @@ class DispatcherInlayProvider : InlayHintsProvider<NoSettings> {
                 val analysis = file.project.service<DispatcherAnalysisService>()
                 val fileUrl = file.virtualFile?.url ?: return false
                 val result = analysis.requestAnalysis(file)
+                val badgeSettings = service<DispatcherSettings>().getState()
+                val eligibleCallOffsets = if (
+                    badgeSettings.onlyInFunctionContainingCaret &&
+                    badgeSettings.resolvedCallSiteMode() != CallSiteBadgeMode.NONE
+                ) {
+                    val ranges = CaretFunctionScope.functionRanges(file)
+                    val caretOffset = editor.caretModel.primaryCaret.offset
+                    val selected = CaretFunctionScope.selectedRange(ranges, caretOffset)
+                    file.project.service<DispatcherCaretRefreshService>().track(editor, file, ranges, caretOffset)
+                    CaretFunctionScope.eligibleCallOffsets(file, result.calls.keys, selected?.startOffset)
+                } else null
                 BadgePresentation.render(
                     factory,
                     result,
                     editor,
-                    service<DispatcherSettings>().getState(),
+                    badgeSettings,
                     sink,
                     fileUrl,
-                ) { analysis.isCurrentAnalysis(fileUrl, result) }
+                    isCurrentAnalysis = { analysis.isCurrentAnalysis(fileUrl, result) },
+                    eligibleCallOffsets = eligibleCallOffsets,
+                )
                 return false
             }
         }

@@ -1,8 +1,8 @@
 package de.charlex.dispatcher.editor
 
 import com.intellij.codeInsight.hints.InlayHintsSink
-import com.intellij.codeInsight.hints.InlayPresentationFactory.ClickListener
 import com.intellij.codeInsight.hints.presentation.InlayPresentation
+import com.intellij.codeInsight.hints.presentation.MouseButton
 import com.intellij.codeInsight.hints.presentation.PresentationFactory
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -17,6 +17,8 @@ import de.charlex.dispatcher.model.BadgeSegment
 import de.charlex.dispatcher.model.Dispatcher
 import de.charlex.dispatcher.model.DispatcherOrigin
 import de.charlex.dispatcher.model.EffectSummary
+import java.awt.Cursor
+import java.util.EnumSet
 
 internal object BadgePresentation {
     fun segments(summary: EffectSummary, declaration: Boolean): List<BadgeSegment> {
@@ -53,11 +55,15 @@ internal object BadgePresentation {
                     navigateDispatcher ?: { _, targetOrigins, current ->
                         DispatcherOriginNavigation.navigate(editor, targetOrigins, current)
                     }
-                parts += factory.referenceOnHover(
-                    name,
-                    ClickListener { _, _ ->
-                        if (isCurrentAnalysis()) navigate(dispatcher, origins, isCurrentAnalysis)
-                    },
+                parts += factory.withCursorOnHover(
+                    factory.onClick(
+                        name,
+                        EnumSet.of(MouseButton.Left, MouseButton.Middle),
+                        { _, _ ->
+                            if (isCurrentAnalysis()) navigate(dispatcher, origins, isCurrentAnalysis)
+                        },
+                    ),
+                    Cursor.getPredefinedCursor(Cursor.HAND_CURSOR),
                 )
             } else {
                 parts += name
@@ -81,6 +87,7 @@ internal object BadgePresentation {
         sink: InlayHintsSink,
         sourceFileUrl: String = "",
         isCurrentAnalysis: () -> Boolean = { false },
+        eligibleCallOffsets: Set<Int>? = null,
     ) {
         val currentResult = { sourceFileUrl.isNotBlank() && isCurrentAnalysis() }
         val length = editor.document.textLength
@@ -105,6 +112,7 @@ internal object BadgePresentation {
             result.calls.forEach { (offset, badge) ->
                 ProgressManager.checkCanceled()
                 if (offset !in 0..length) return@forEach
+                if (eligibleCallOffsets != null && offset !in eligibleCallOffsets) return@forEach
                 if (callSiteMode == CallSiteBadgeMode.DISPATCHER_CHANGES && !badge.summary.setsDispatcher) {
                     return@forEach
                 }
@@ -128,7 +136,8 @@ internal object DispatcherOriginNavigation {
         openOrigin: ((DispatcherOrigin) -> Unit)? = null,
         showChooser: ((List<DispatcherOrigin>, (DispatcherOrigin) -> Unit) -> Unit)? = null,
     ) {
-        if (editor.isDisposed || editor.project?.isDisposed != false || !isCurrentAnalysis()) return
+        val current = isCurrentAnalysis()
+        if (editor.isDisposed || editor.project?.isDisposed != false || !current) return
         val choices = origins.distinct().sortedWith(compareBy({ it.fileUrl }, { it.line }, { it.offset }, { it.description }))
         if (choices.isEmpty()) return
         val open: (DispatcherOrigin) -> Unit = openOrigin ?: { origin -> openSourceOrigin(editor, origin) }

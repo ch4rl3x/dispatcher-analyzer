@@ -2,9 +2,9 @@
 
 Open `samples/demo` as a separate Gradle project in Android Studio after importing the repository plugin into a sandbox IDE. The demo uses Kotlin 2.4.0, Java 25, and kotlinx.coroutines 1.11.0. Its functions are inspection fixtures and do not need to run.
 
-Under Settings > Tools > Dispatcher Analyzer, choose All calls, Only calls that set a dispatcher, or Do not show (default). In the filtered mode, calls to `ioWrapper` and `mixedWorkload` retain their badges while inherited `delay` calls disappear. Declaration badges have no plugin-specific off switch.
+Under Settings > Tools > Dispatcher Analyzer, choose All calls, Only calls that set a dispatcher (default), or Do not show. In the filtered mode, calls to `ioWrapper` and `mixedWorkload` retain their badges while inherited `delay` calls disappear. Optionally enable Only in the function containing the caret to restrict call badges to the current function. Declaration badges have no plugin-specific off switch.
 
-Automatic analysis runs after typing pauses. Disable it in the same settings page to use Analyze project in the Dispatcher Analyzer side panel. Source changes invalidate results until the next manual run.
+Analysis runs automatically after import and after saving changes, including IDE autosave. Typing invalidates results until the next save. The disposable cache is stored in `build/dispatcher-analyzer/`; there is no analysis side panel. The Reanalyze file icon in the editor toolbar saves and force-refreshes the active file.
 
 The pinned wrapper supports `./gradlew classes` with JDK 25. Wait for Android Studio's Gradle import to finish before inspecting badges.
 

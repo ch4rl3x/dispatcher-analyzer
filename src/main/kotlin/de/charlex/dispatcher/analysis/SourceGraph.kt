@@ -11,7 +11,7 @@ import org.jetbrains.kotlin.psi.*
 
 internal data class FunctionBody(
     val key: FunctionKey,
-    val declaration: KtNamedFunction,
+    val name: String?,
     val effect: Effect,
     val openEntry: Boolean,
 )
@@ -24,7 +24,6 @@ internal class AnalysisProgress {
 
 internal class SourceGraph(
     private val api: KotlinAnalysisAdapter,
-    private val functions: Set<FunctionKey>,
     private val progress: AnalysisProgress,
 ) {
     private val contexts = ContextResolver(api)
@@ -43,7 +42,7 @@ internal class SourceGraph(
             else rawEffect
         return FunctionBody(
             key,
-            function,
+            function.name,
             effect,
             !function.hasModifier(KtTokens.PRIVATE_KEYWORD) && !function.isLocal,
         )
@@ -203,7 +202,8 @@ internal class SourceGraph(
         val target = resolved.target?.let(::key)
         val effect = when {
             resolved.virtual -> unknown("Virtual suspend target may have another implementation")
-            target != null && target in functions -> Effect.Invoke(target, context)
+            target != null && resolved.target?.let { isSupported(it) && !it.containingKtFile.isCompiled } == true ->
+                Effect.Invoke(target, context)
             id in INHERITED_LIBRARY_CALLS -> work(context)
             else -> unknown("External suspend implementation has no verified summary")
         }

@@ -15,16 +15,21 @@ Deliver an Android Studio plugin with editor-only dispatcher badges above suspen
 | 7 | [Validate responsiveness and package the first alpha](https://github.com/ch4rl3x/dispatcher-analyzer/issues/7) | Responsive analysis, compatibility checks, installable alpha | #6 |
 | 8 | [Navigate dispatcher badges to source evidence](https://github.com/ch4rl3x/dispatcher-analyzer/issues/8) | Per-name navigation to contributing dispatcher origins | #6 |
 | 9 | [Add call-site badge display modes](https://github.com/ch4rl3x/dispatcher-analyzer/issues/9) | All calls, dispatcher-setting calls, or none | #6 |
+| 10 | [Cache automatic analysis after saved changes](https://github.com/ch4rl3x/dispatcher-analyzer/issues/10) | Import/save triggers, persistent cache, per-file refresh icon | #6, #9 |
+| 11 | [Limit call badges to the caret function](https://github.com/ch4rl3x/dispatcher-analyzer/issues/11) | Filtered default, optional caret-based call badges | #9 |
+| 12 | [Publish downloadable plugin build artifacts](https://github.com/ch4rl3x/dispatcher-analyzer/issues/12) | Manual CI trigger and dedicated plugin ZIP artifact | #10, #11 |
+| 13 | [Document plugin installation before Marketplace](https://github.com/ch4rl3x/dispatcher-analyzer/issues/13) | Download, disk installation, and update instructions | #12 |
 
-The presentation prototype and dispatcher model can proceed in parallel after bootstrap. Navigation and call-site display modes extend the integrated badges before final alpha validation. Each issue includes acceptance criteria; the alpha is complete when all nine pass.
+The presentation prototype and dispatcher model can proceed in parallel after bootstrap. Navigation, call-site display modes, and saved-file caching extend the integrated badges before the final build-distribution and installation tasks, followed by alpha validation. Each issue includes acceptance criteria; the alpha is complete when all thirteen pass.
 
 ## Initial scope
 
 - Kotlin/JVM source, named suspend functions, direct calls, standard coroutine builders, and resolved withContext.
 - Declaration badges use `called within Dispatcher …` for incoming contexts; call badges use `Dispatcher …` for callee effects. Preserve Unknown and label proven partial coverage.
-- Functions without project code calls have no declaration badge; public visibility and documentation references alone are insufficient. Declaration badges have no plugin-specific off switch. A dropdown selects all call-site badges, only dispatcher-setting calls, or none (default). Suspend expect declarations and calls are excluded.
-- Analyze asynchronously after a 750 ms typing pause, cancel superseded work, and refresh only current results. Do not cap project size or convergence rounds arbitrarily.
-- Offer automatic analysis (default) or manual analysis with an Analyze project button in the Dispatcher Analyzer side panel. Manual mode keeps stale results gray until explicitly refreshed.
+- Functions without project code calls have no declaration badge; public visibility and documentation references alone are insufficient. Declaration badges have no plugin-specific off switch. A dropdown selects all call-site badges, only dispatcher-setting calls (default), or none. An optional checkbox limits call badges to the function containing the caret. Suspend expect declarations and calls are excluded.
+- Analyze automatically after project import and saved changes, including IDE autosave. Typing cancels and invalidates work without starting a new analysis. No manual mode or side panel is needed.
+- Provide a Reanalyze file icon in the editor toolbar to save and force-refresh the active file and its affected dependencies.
+- Cache immutable per-file graphs under `build/dispatcher-analyzer/`, validate fingerprints on reopen, and update changed files and affected dependencies. Rebuild after cache removal, structural changes, or environment changes. Do not cap project size or convergence rounds arbitrarily.
 - Use Main red, Default green, IO yellow, Unknown/analysis problems gray, and other identified dispatchers purple. Verify mixed-entry colors and readable contrast in the prototype; source remains unchanged.
 - Include proven custom identities and a version-scoped Room summary with fixtures. Unresolved library dispatchers stay Unknown; proven standard dispatchers keep their standard color.
 - Make each colored dispatcher name navigate to its own source evidence. Only multiple origins for that same dispatcher open a chooser; Unknown, prefixes, separators, and partial suffixes have no action.
@@ -32,4 +37,4 @@ The presentation prototype and dispatcher model can proceed in parallel after bo
 
 ## Repository status
 
-The alpha implementation, Gradle wrapper, demo, and CI are present. Local semantic/editor tests, packaging, and Plugin Verifier pass on the pinned Android Studio target. Final visual smoke testing and CI validation are tracked in #7. See the [validation record](docs/validation.md).
+The alpha implementation, Gradle wrapper, demo, installation guide, and downloadable CI artifact are present. All 125 local tests, packaging, Plugin Verifier, and native light/dark editor smoke checks pass on the pinned Android Studio target. GitHub Actions runs the same automated checks before exposing the plugin ZIP. See the [validation record](docs/validation.md).

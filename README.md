@@ -4,25 +4,39 @@ Android Studio plugin for understanding dispatcher usage in Kotlin `suspend` fun
 
 - **Above declarations:** editor-only badges such as `called within Dispatcher Main` or `called within Dispatcher Main | IO`, inferred from incoming calls. Functions without project code calls receive no declaration badge; documentation references do not count.
 - **At call sites:** badges describing the callee's execution, including internal `withContext` switches and `(partial)` coverage.
-- **Settings:** choose all call-site badges, only calls that set a dispatcher, or no call-site badges (default). Declaration badges have no plugin-specific off switch. Suspend expect declarations and calls are excluded.
+- **Settings:** choose all call-site badges, only calls that set a dispatcher (default), or no call-site badges. Declaration badges have no plugin-specific off switch. Suspend expect declarations and calls are excluded.
 - **Unknown:** unresolved contexts remain visible, including alongside known dispatchers.
 - **Colors:** Main red, Default green, IO yellow, Unknown/analysis problems gray, and other identified dispatchers (including custom/library dispatchers) purple. Mixed badges color each dispatcher separately; text stays readable in light and dark themes.
 - **Navigation:** click a colored dispatcher name to open the source that selected it. Each name uses its own origins; multiple origins for the same dispatcher open a chooser. Unknown has no navigation target.
 - **Presentation:** no source edits or added document lines; above-code hints occupy editor space.
-- **Responsiveness:** background analysis starts after a 750 ms typing pause. New edits cancel superseded work; pending results are gray or omitted until call evidence is available. Project size is not capped by file or function counts.
+- **Automatic analysis:** analyze after project import and saved changes, including IDE autosave. Typing invalidates results without starting analysis. A persistent cache in `build/dispatcher-analyzer/` reuses unchanged work; project size is not capped.
 
 Badges describe static analysis, not which dispatchers are safe or permitted. A `suspend` modifier alone does not choose a dispatcher.
 
 ## Install and configure
 
-The alpha targets Android Studio Rabbit 1 (`2026.2.1.8`, platform 262). Build with JDK 25 and `./gradlew buildPlugin`, then select the archive in `build/distributions/` through Settings > Plugins > Install Plugin from Disk.
+The alpha targets Android Studio Rabbit 1 (`2026.2.1.8`, build `AI-262.9437.185.2621.16467767`, platform 262). It is not yet published on JetBrains Marketplace.
 
-Open Settings > Tools > Dispatcher Analyzer, or use **Settings…** in the Dispatcher Analyzer side panel.
+1. Sign in to GitHub and open the [Build workflow](https://github.com/ch4rl3x/dispatcher-analyzer/actions/workflows/build.yml). Select a successful run for `main`.
+2. Under **Artifacts**, download **dispatcher-analyzer-plugin**. Extract GitHub’s downloaded archive once to obtain `dispatcher-analyzer-<version>.zip`. Keep this inner plugin ZIP intact.
+3. In Android Studio, open **Settings > Plugins** (on macOS: **Android Studio > Settings**, called Preferences in some versions).
+4. Open the gear menu, select **Install Plugin from Disk…**, choose the inner plugin ZIP, and confirm. Restart Android Studio if prompted.
+5. Open your project and let import/indexing finish. Analysis runs automatically; configure badges under **Settings > Tools > Dispatcher Analyzer**.
 
-- Automatic analysis is on by default and runs after typing pauses. Turn it off to analyze manually with **Analyze project** in the **Dispatcher Analyzer** side panel (View > Tool Windows).
-- **Call-site badges:** choose **All calls**, **Only calls that set a dispatcher**, or **Do not show** (default). The filtered mode includes synchronous dispatcher selection inside the callee, including supported nested calls; merely inheriting a caller's dispatcher does not qualify.
+To update, download a newer successful build and repeat the disk-install steps. Build artifacts expire after **14 days**; maintainers can use **Run workflow** on the Build page to generate a fresh one. The workflow also runs on pushes and pull requests and uploads validation reports separately. [GitHub artifact downloads](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts) require sign-in; the IDE follows the standard [plugin-from-disk installation flow](https://www.jetbrains.com/help/idea/managing-plugins.html#install_plugin_from_disk).
 
-After source changes, outdated results become gray or disappear until analysis finishes. In manual mode, they remain pending until you press **Analyze project** again. Declaration badges have no plugin-specific off switch; IDE-wide inlay controls still apply.
+Alternatively, build locally with JDK 25 and `./gradlew buildPlugin`, then install the ZIP from `build/distributions/` using steps 3–4.
+
+Open Settings > Tools > Dispatcher Analyzer.
+
+- **Call-site badges:** choose **All calls**, **Only calls that set a dispatcher** (default), or **Do not show**. The filtered mode includes synchronous dispatcher selection inside the callee, including supported nested calls; merely inheriting a caller's dispatcher does not qualify.
+- **Only in the function containing the caret:** optionally limit call badges to the current function. This is off by default and available when call badges are enabled. Moving the caret updates the display; outside a function, call badges are hidden.
+
+Analysis runs in the background after import and when Kotlin files are saved; there is no side panel or manual mode. Edits make outdated results gray or hide them until saved changes have been analyzed. Declaration badges have no plugin-specific off switch; IDE-wide inlay controls still apply.
+
+Use **Reanalyze file** in the editor’s upper-right toolbar to rebuild the current file’s analysis and affected dependencies. This saves the current document first and leaves automatic analysis enabled.
+
+The cache updates changed files and their dependencies. Signature, import, project-root, or library changes can require a full rebuild. The cache is disposable: deleting `build/dispatcher-analyzer/` or running `clean` causes it to be rebuilt.
 
 Open the [demo project](samples/demo) in a sandbox to explore Main, IO, Default, custom, partial, and unknown results.
 

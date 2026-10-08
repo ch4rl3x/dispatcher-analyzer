@@ -21,15 +21,15 @@
 - Isolate experimental Analysis API and Code Vision integration. Declare K2 compatibility when required by the target platform.
 - Start with one Gradle module and separate model, analysis, and editor packages. Keep the dispatcher model independent of IDE classes.
 - Use platform-managed, cancellable background work and appropriate read actions. Never resolve symbols or traverse the project on the UI thread.
-- Debounce analysis after a typing pause, cancel superseded work, and publish only results for the current project revision. Do not impose arbitrary file, function, node, or fixed-point-round limits.
-- Default to automatic analysis. In manual mode, analyze only on explicit request from the side panel; edits invalidate results without restarting work. Keep the analysis mode independent of call-site badge visibility.
-- Cache immutable summaries or restorable pointers, not analysis sessions or lifetime-bound symbols. Invalidate dependent results on source and project changes.
+- Analyze automatically after project import and saved source changes. Typing invalidates and cancels work without starting analysis; coalesce save events and publish only current results. Do not impose arbitrary file, function, node, or fixed-point-round limits.
+- Do not add a manual analysis mode or tool window. Provide an editor toolbar action to save and force-refresh the current file and affected dependencies. Keep call-site badge preferences in the normal settings page.
+- Persist immutable per-file graphs and summaries under the project build/dispatcher-analyzer directory. Validate source and environment fingerprints before reuse; update changed files and their affected dependencies. Rebuild conservatively after structural or project changes. Never cache analysis sessions, PSI, or lifetime-bound symbols.
 - Handle indexing, incomplete code, project disposal, and pending or canceled analysis without stale certainty or exceptions in the editor.
 
 ## Product contract
 
 - Badges are editor tooling only. Never add annotations, comments, or lines to the user's source.
-- Provide declaration badges only when project code contains a call to the function; do not add a plugin-specific visibility switch. Documentation references and public visibility alone do not count as calls. Call-site badges use a dropdown for all calls, dispatcher-setting calls only, or none (default). Preserve legacy preferences. Exclude suspend expect declarations and their calls.
+- Provide declaration badges only when project code contains a call to the function; do not add a plugin-specific visibility switch. Documentation references and public visibility alone do not count as calls. Call-site badges use a dropdown for all calls, dispatcher-setting calls only (default), or none. Preserve explicit legacy preferences. An optional checkbox limits call badges to the function containing the caret; it is disabled when call badges are hidden. Exclude suspend expect declarations and their calls.
 - Keep incoming contexts separate from callee execution effects. Preserve `Unknown`; never infer thread safety from a badge.
 - Prefix declaration badges with `called within Dispatcher ` and call-site badges with `Dispatcher `.
 - Make only colored dispatcher names navigate to their own source evidence. Multiple origins for the same dispatcher use a chooser. Unknown and stale results never navigate.

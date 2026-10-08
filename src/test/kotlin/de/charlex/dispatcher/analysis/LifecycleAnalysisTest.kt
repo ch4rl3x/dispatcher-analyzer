@@ -15,8 +15,6 @@ import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase
-import de.charlex.dispatcher.editor.DispatcherHintSettings
-import de.charlex.dispatcher.editor.DispatcherSettings
 import de.charlex.dispatcher.model.Dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,25 +23,13 @@ import org.jetbrains.kotlin.psi.KtFile
 import java.io.File
 
 class LifecycleAnalysisTest : BasePlatformTestCase() {
-    private lateinit var previousSettings: DispatcherHintSettings
-
     override fun getProjectDescriptor() = LightJavaCodeInsightFixtureTestCase.JAVA_21
 
     override fun setUp() {
         super.setUp()
-        previousSettings = service<DispatcherSettings>().state
-        service<DispatcherSettings>().update(false, true)
         System.getProperty("dispatcher.fixture.libraries").split(File.pathSeparator).forEach { path ->
             val library = File(path)
             PsiTestUtil.addLibrary(module, library.nameWithoutExtension, library.parent, library.name)
-        }
-    }
-
-    override fun tearDown() {
-        try {
-            service<DispatcherSettings>().update(previousSettings.showCalls, previousSettings.automaticAnalysis)
-        } finally {
-            super.tearDown()
         }
     }
 
@@ -55,8 +41,8 @@ class LifecycleAnalysisTest : BasePlatformTestCase() {
             val unavailable = read { analysis.analyze(file) }
             assertTrue(unavailable.declarations.isEmpty())
             assertTrue(unavailable.calls.isEmpty())
-            read { analysis.requestAnalysis(file) }
-            dispatchPastDebounce()
+            analysis.startAnalysis()
+            dispatchPastSaveCoalescing()
             assertFalse(analysis.hasCurrentAnalysis(file))
         } finally {
             DumbModeTestUtils.endEternalDumbModeTaskAndWaitForSmartMode(project, indexing)
@@ -125,10 +111,10 @@ class LifecycleAnalysisTest : BasePlatformTestCase() {
         val job = SupervisorJob()
         Disposer.register(lifetime, Disposable { job.cancel() })
         val analysis = DispatcherAnalysisService(project, CoroutineScope(job + Dispatchers.Default))
-        read { analysis.requestAnalysis(file) }
+        analysis.startAnalysis()
         Disposer.dispose(lifetime)
         PlatformTestUtil.waitWithEventsDispatching("Analysis scope disposal", { job.isCompleted }, 10)
-        dispatchPastDebounce()
+        dispatchPastSaveCoalescing()
         assertTrue(job.isCancelled)
         assertFalse(analysis.hasCurrentAnalysis(file))
         assertFalse(analysis.analysisStatus == "Up to date")
@@ -146,7 +132,7 @@ class LifecycleAnalysisTest : BasePlatformTestCase() {
 
     private fun <T> read(block: () -> T): T = ReadAction.compute<T, RuntimeException>(block)
 
-    private fun dispatchPastDebounce() {
+    private fun dispatchPastSaveCoalescing() {
         val deadline = System.nanoTime() + 1_100_000_000
         while (System.nanoTime() < deadline) {
             PlatformTestUtil.dispatchAllEventsInIdeEventQueue()

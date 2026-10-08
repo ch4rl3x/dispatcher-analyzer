@@ -8,8 +8,7 @@
         <applicationConfigurable parentId="tools" id="dispatcher.analyzer"
             displayName="Dispatcher Analyzer"
             instance="de.charlex.dispatcher.editor.DispatcherConfigurable"/>
-        <toolWindow id="Dispatcher Analyzer" anchor="right"
-            factoryClass="de.charlex.dispatcher.editor.DispatcherToolWindowFactory"/>
+        <postStartupActivity implementation="de.charlex.dispatcher.analysis.DispatcherAnalysisStartupActivity"/>
     </extensions>
     <extensions defaultExtensionNs="org.jetbrains.kotlin">
         <supportsKotlinPluginMode supportsK1="false" supportsK2="true"/>
@@ -18,6 +17,15 @@
         <listener class="de.charlex.dispatcher.editor.DispatcherAnalysisRefreshListener"
             topic="de.charlex.dispatcher.analysis.DispatcherAnalysisListener"/>
     </projectListeners>
+    <actions>
+        <action id="de.charlex.dispatcher.editor.ReanalyzeFile"
+            class="de.charlex.dispatcher.editor.ReanalyzeFileAction"
+            text="Reanalyze file"
+            description="Rebuild dispatcher analysis for the current file"
+            icon="AllIcons.Actions.Refresh">
+            <add-to-group group-id="EditorTabsToolbarActions" anchor="last"/>
+        </action>
+    </actions>
     <description><![CDATA[
         Shows inferred coroutine dispatchers above Kotlin suspend functions
         and beside their calls, with colored editor-only badges.

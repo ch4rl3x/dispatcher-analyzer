@@ -4,9 +4,6 @@ import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
-import com.intellij.openapi.components.service
-import com.intellij.openapi.project.ProjectManager
-import de.charlex.dispatcher.analysis.DispatcherAnalysisService
 
 @Service(Service.Level.APP)
 @State(name = "DispatcherAnalyzerSettings", storages = [Storage("dispatcher-analyzer.xml")])
@@ -19,8 +16,8 @@ class DispatcherSettings : PersistentStateComponent<DispatcherHintSettings> {
     val showCalls: Boolean
         get() = callSiteMode != CallSiteBadgeMode.NONE
 
-    val automaticAnalysis: Boolean
-        get() = stored.automaticAnalysis
+    val onlyInFunctionContainingCaret: Boolean
+        get() = stored.onlyInFunctionContainingCaret
 
     override fun getState(): DispatcherHintSettings =
         stored.copy(showCalls = showCalls, callSiteMode = callSiteMode)
@@ -35,23 +32,17 @@ class DispatcherSettings : PersistentStateComponent<DispatcherHintSettings> {
     }
 
     fun updateCalls(mode: CallSiteBadgeMode) {
-        update(mode, stored.automaticAnalysis)
+        update(mode, stored.onlyInFunctionContainingCaret)
     }
 
-    fun update(showCalls: Boolean, automaticAnalysis: Boolean) {
-        update(if (showCalls) CallSiteBadgeMode.ALL else CallSiteBadgeMode.NONE, automaticAnalysis)
-    }
-
-    fun update(callSiteMode: CallSiteBadgeMode, automaticAnalysis: Boolean) {
-        val next = DispatcherHintSettings(callSiteMode != CallSiteBadgeMode.NONE, automaticAnalysis, callSiteMode)
+    fun update(mode: CallSiteBadgeMode, onlyInFunctionContainingCaret: Boolean) {
+        val next = DispatcherHintSettings(mode != CallSiteBadgeMode.NONE, mode, onlyInFunctionContainingCaret)
         if (stored == next) return
-        val modeChanged = stored.automaticAnalysis != automaticAnalysis
         stored = next
-        if (modeChanged) {
-            ProjectManager.getInstance().openProjects.filterNot { it.isDisposed }.forEach { project ->
-                project.service<DispatcherAnalysisService>().analysisModeChanged()
-            }
-        }
         InlayRefresh.restartOpenProjects()
+    }
+
+    fun updateOnlyInFunctionContainingCaret(enabled: Boolean) {
+        update(callSiteMode, enabled)
     }
 }

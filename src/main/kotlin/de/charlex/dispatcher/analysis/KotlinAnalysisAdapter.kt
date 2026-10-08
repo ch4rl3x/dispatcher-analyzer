@@ -12,6 +12,7 @@ import org.jetbrains.kotlin.analysis.api.symbols.KaConstructorSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaNamedFunctionSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaSymbolModality
 import org.jetbrains.kotlin.analysis.api.symbols.KaSymbolOrigin
+import org.jetbrains.kotlin.analysis.api.symbols.KaSymbol
 import org.jetbrains.kotlin.analysis.api.types.KaClassType
 import org.jetbrains.kotlin.analysis.api.types.KaFunctionType
 import org.jetbrains.kotlin.name.ClassId
@@ -25,6 +26,7 @@ import org.jetbrains.kotlin.psi.KtNameReferenceExpression
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtProperty
 import org.jetbrains.kotlin.psi.KtQualifiedExpression
+import org.jetbrains.kotlin.psi.KtDeclaration
 
 internal data class ResolvedCall(
     val identity: String?,
@@ -51,23 +53,30 @@ internal data class ResolvedValue(
 )
 
 /** All lifetime-bound Analysis API objects are consumed inside these sessions. */
-internal class KotlinAnalysisAdapter {
+internal class KotlinAnalysisAdapter(val dependencies: MutableSet<String> = linkedSetOf()) {
     private val calls = HashMap<KtCallExpression, ResolvedCall?>()
     private val values = HashMap<KtExpression, ResolvedValue?>()
 
     fun operatorIdentity(expression: KtBinaryExpression): String? = analyze(expression) {
-        (expression.operationReference.resolveSymbol() as? KaCallableSymbol)
+        (expression.operationReference.resolveSymbol()?.also(::remember) as? KaCallableSymbol)
             ?.callableId?.asSingleFqName()?.asString()
     }
 
     fun referencedFunction(expression: KtCallableReferenceExpression): KtNamedFunction? = analyze(expression) {
-        expression.resolveSymbol()?.psi as? KtNamedFunction
+        expression.resolveSymbol()?.also(::remember)?.psi as? KtNamedFunction
+    }
+
+    fun declarationType(declaration: KtDeclaration): String = analyze(declaration) {
+        val symbol = declaration.symbol as? KaCallableSymbol ?: return@analyze ""
+        remember(symbol)
+        symbol.returnType.render(position = org.jetbrains.kotlin.types.Variance.INVARIANT)
     }
 
     fun call(expression: KtCallExpression): ResolvedCall? = calls.getOrPut(expression) {
         analyze(expression) {
             val call = expression.resolveCall() ?: return@analyze null
             val symbol = call.signature.symbol
+            remember(symbol)
             val named = symbol as? KaNamedFunctionSymbol
             ResolvedCall(
                 identity = symbol.callableId?.asSingleFqName()?.asString()
@@ -99,6 +108,7 @@ internal class KotlinAnalysisAdapter {
                 is KtQualifiedExpression -> expression.resolveSymbol()
                 else -> null
             } ?: return@analyze null
+            remember(symbol)
             val callable = symbol as? KaCallableSymbol
             val classSymbol = symbol as? org.jetbrains.kotlin.analysis.api.symbols.KaClassSymbol
             ResolvedValue(
@@ -116,6 +126,11 @@ internal class KotlinAnalysisAdapter {
                 virtual = callable?.modality == KaSymbolModality.OPEN || callable?.modality == KaSymbolModality.ABSTRACT,
             )
         }
+    }
+
+    private fun remember(symbol: KaSymbol) {
+        val file = symbol.psi?.containingFile as? KtFile ?: return
+        if (!file.isCompiled) file.virtualFile?.url?.let(dependencies::add)
     }
 
     companion object {

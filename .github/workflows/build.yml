@@ -3,6 +3,7 @@ name: Build
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -19,9 +20,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew test buildPlugin verifyPluginProjectConfiguration verifyPlugin
       - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: dispatcher-analyzer-plugin
+          path: build/distributions/*.zip
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: plugin-and-reports
+          name: validation-reports
           path: |
-            build/distributions/*.zip
             build/reports/
+            build/test-results/
+          if-no-files-found: warn
+          retention-days: 14

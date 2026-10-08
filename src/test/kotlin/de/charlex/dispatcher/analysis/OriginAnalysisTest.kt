@@ -10,8 +10,6 @@ import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase
-import de.charlex.dispatcher.editor.DispatcherHintSettings
-import de.charlex.dispatcher.editor.DispatcherSettings
 import de.charlex.dispatcher.model.Dispatcher
 import de.charlex.dispatcher.model.DispatcherOrigin
 import org.jetbrains.kotlin.psi.KtFile
@@ -19,25 +17,13 @@ import org.jetbrains.kotlin.psi.KtNamedFunction
 import java.io.File
 
 class OriginAnalysisTest : BasePlatformTestCase() {
-    private lateinit var previousSettings: DispatcherHintSettings
-
     override fun getProjectDescriptor() = LightJavaCodeInsightFixtureTestCase.JAVA_21
 
     override fun setUp() {
         super.setUp()
-        previousSettings = service<DispatcherSettings>().state
-        service<DispatcherSettings>().update(false, false)
         System.getProperty("dispatcher.fixture.libraries").split(File.pathSeparator).forEach { path ->
             val library = File(path)
             PsiTestUtil.addLibrary(module, library.nameWithoutExtension, library.parent, library.name)
-        }
-    }
-
-    override fun tearDown() {
-        try {
-            service<DispatcherSettings>().update(previousSettings.showCalls, previousSettings.automaticAnalysis)
-        } finally {
-            super.tearDown()
         }
     }
 

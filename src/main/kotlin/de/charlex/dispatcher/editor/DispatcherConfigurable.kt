@@ -5,8 +5,8 @@ import com.intellij.openapi.options.SearchableConfigurable
 import java.awt.Component
 import java.awt.Dimension
 import javax.swing.BoxLayout
-import javax.swing.JCheckBox
 import javax.swing.JComboBox
+import javax.swing.JCheckBox
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JList
@@ -15,7 +15,7 @@ import javax.swing.DefaultListCellRenderer
 
 class DispatcherConfigurable : SearchableConfigurable {
     private var callSiteMode: JComboBox<CallSiteBadgeMode>? = null
-    private var automaticAnalysis: JCheckBox? = null
+    private var onlyInFunction: JCheckBox? = null
 
     override fun getId() = "dispatcher.analyzer"
 
@@ -44,36 +44,44 @@ class DispatcherConfigurable : SearchableConfigurable {
             }
         }
         callSiteMode = mode
+        val onlyFunction = JCheckBox("Only in the function containing the caret").apply {
+            isSelected = settings.onlyInFunctionContainingCaret
+            isEnabled = mode.selectedItem != CallSiteBadgeMode.NONE
+        }
+        onlyInFunction = onlyFunction
+        mode.addActionListener { onlyFunction.isEnabled = mode.selectedItem != CallSiteBadgeMode.NONE }
         add(JPanel().apply {
             layout = BoxLayout(this, BoxLayout.X_AXIS)
             alignmentX = Component.LEFT_ALIGNMENT
             add(JLabel("Call-site badges:").apply { labelFor = mode })
             add(mode)
         })
-        val automatic = JCheckBox("Analyze automatically after typing pauses", settings.automaticAnalysis)
-        automaticAnalysis = automatic
-        add(automatic)
+        add(onlyFunction.apply { alignmentX = Component.LEFT_ALIGNMENT })
     }
 
     override fun isModified(): Boolean {
         val settings = service<DispatcherSettings>()
         return callSiteMode?.selectedItem?.let { it != settings.callSiteMode } == true ||
-            automaticAnalysis?.isSelected?.let { it != settings.automaticAnalysis } == true
+            onlyInFunction?.isSelected?.let { it != settings.onlyInFunctionContainingCaret } == true
     }
 
     override fun apply() {
         val calls = callSiteMode?.selectedItem as? CallSiteBadgeMode ?: return
-        val automatic = automaticAnalysis ?: return
-        service<DispatcherSettings>().update(calls, automatic.isSelected)
+        val onlyFunction = onlyInFunction?.isSelected ?: false
+        service<DispatcherSettings>().update(calls, onlyFunction)
     }
 
     override fun reset() {
-        callSiteMode?.selectedItem = service<DispatcherSettings>().callSiteMode
-        automaticAnalysis?.isSelected = service<DispatcherSettings>().automaticAnalysis
+        val settings = service<DispatcherSettings>()
+        callSiteMode?.selectedItem = settings.callSiteMode
+        onlyInFunction?.apply {
+            isSelected = settings.onlyInFunctionContainingCaret
+            isEnabled = settings.callSiteMode != CallSiteBadgeMode.NONE
+        }
     }
 
     override fun disposeUIResources() {
         callSiteMode = null
-        automaticAnalysis = null
+        onlyInFunction = null
     }
 }

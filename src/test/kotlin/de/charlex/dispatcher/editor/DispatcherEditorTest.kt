@@ -5,8 +5,10 @@ import com.intellij.codeInsight.hints.HorizontalConstraints
 import com.intellij.codeInsight.hints.InlayHintsSink
 import com.intellij.codeInsight.hints.presentation.InlayPresentation
 import com.intellij.codeInsight.hints.presentation.PresentationFactory
+import com.intellij.codeInsight.hints.presentation.RecursivelyUpdatingRootPresentation
 import com.intellij.codeInsight.hints.presentation.RootInlayPresentation
 import com.intellij.codeInsight.hints.presentation.SequencePresentation
+import com.intellij.codeInsight.hints.presentation.StatefulPresentation
 import com.intellij.codeInsight.hints.presentation.StaticDelegatePresentation
 import com.intellij.codeInsight.hints.presentation.TextInlayPresentation
 import com.intellij.openapi.components.service
@@ -16,6 +18,7 @@ import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.util.xmlb.XmlSerializer
 import com.intellij.ui.ColorUtil
+import org.jdom.Element
 import de.charlex.dispatcher.analysis.BadgeResult
 import de.charlex.dispatcher.analysis.FileAnalysis
 import de.charlex.dispatcher.model.Dispatcher
@@ -57,7 +60,7 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         myFixture.configureByText("Badge.kt", "suspend fun load() { load() }")
         val result = FileAnalysis(mapOf(0 to badge(Dispatcher.Main)), mapOf(25 to badge(Dispatcher.IO)))
         val declarations = RecordingSink()
-        render(result, DispatcherHintSettings(), declarations)
+        render(result, DispatcherHintSettings(callSiteMode = CallSiteBadgeMode.NONE), declarations)
         assertEquals(1, declarations.blocks.size)
         assertTrue(declarations.inline.isEmpty())
 
@@ -107,6 +110,11 @@ class DispatcherEditorTest : BasePlatformTestCase() {
             ),
         )
 
+        val default = RecordingSink()
+        render(result, DispatcherHintSettings(), default)
+        assertEquals(listOf(explicitOffset), default.inline.map { it.offset })
+        assertEquals(1, default.blocks.size)
+
         val all = RecordingSink()
         render(result, DispatcherHintSettings(callSiteMode = CallSiteBadgeMode.ALL), all)
         assertEquals(listOf(inheritedOffset, explicitOffset, unresolvedOffset), all.inline.map { it.offset })
@@ -124,7 +132,77 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         assertEquals(source, myFixture.editor.document.text)
     }
 
-    fun testDedicatedSettingsPersistCallToggle() {
+    fun testCaretScopeShowsOnlyInnermostFunctionCallsAndKeepsDeclarations() {
+        val source = """
+            suspend fun outer() {
+                first()
+                suspend fun nested() { nestedWork() }
+                afterNested()
+            }
+
+            suspend fun sibling() { siblingWork() }
+        """.trimIndent()
+        val file = myFixture.configureByText("Caret.kt", source) as org.jetbrains.kotlin.psi.KtFile
+        val outerOffset = source.indexOf("suspend fun outer")
+        val siblingOffset = source.indexOf("suspend fun sibling")
+        val callOffsets = listOf("first()", "nestedWork()", "afterNested()", "siblingWork()").associateWith {
+            source.indexOf(it) + it.length
+        }
+        val callBadge = BadgeResult(
+            EffectSummary(DispatcherSet.of(Dispatcher.IO), setsDispatcher = true),
+            "The call selects IO.",
+        )
+        val result = FileAnalysis(
+            declarations = mapOf(outerOffset to badge(Dispatcher.Main), siblingOffset to badge(Dispatcher.Default)),
+            calls = callOffsets.values.associateWith { callBadge },
+        )
+        val ranges = CaretFunctionScope.functionRanges(file)
+        val settings = DispatcherHintSettings(
+            callSiteMode = CallSiteBadgeMode.ALL,
+            onlyInFunctionContainingCaret = true,
+        )
+
+        val outerSelected = CaretFunctionScope.selectedRange(ranges, source.indexOf("first()"))
+        assertEquals(outerSelected, CaretFunctionScope.selectedRange(ranges, source.indexOf("afterNested()")))
+        assertEquals(
+            setOf(callOffsets.getValue("first()"), callOffsets.getValue("afterNested()")),
+            CaretFunctionScope.eligibleCallOffsets(file, result.calls.keys, outerSelected?.startOffset),
+        )
+        val outerSink = RecordingSink()
+        render(
+            result,
+            settings,
+            outerSink,
+            CaretFunctionScope.eligibleCallOffsets(file, result.calls.keys, outerSelected?.startOffset),
+        )
+        assertEquals(listOf(outerOffset, siblingOffset), outerSink.blocks.map { it.offset })
+        assertEquals(listOf(callOffsets.getValue("first()"), callOffsets.getValue("afterNested()")), outerSink.inline.map { it.offset })
+
+        val nestedSelected = CaretFunctionScope.selectedRange(ranges, source.indexOf("nestedWork()"))
+        assertFalse(outerSelected == nestedSelected)
+        assertEquals(
+            setOf(callOffsets.getValue("nestedWork()")),
+            CaretFunctionScope.eligibleCallOffsets(file, result.calls.keys, nestedSelected?.startOffset),
+        )
+        val nestedSink = RecordingSink()
+        render(
+            result,
+            settings,
+            nestedSink,
+            CaretFunctionScope.eligibleCallOffsets(file, result.calls.keys, nestedSelected?.startOffset),
+        )
+        assertEquals(listOf(callOffsets.getValue("nestedWork()")), nestedSink.inline.map { it.offset })
+
+        val outsideSelected = CaretFunctionScope.selectedRange(ranges, siblingOffset - 1)
+        assertNull(outsideSelected)
+        val outsideSink = RecordingSink()
+        render(result, settings, outsideSink, emptySet())
+        assertTrue(outsideSink.inline.isEmpty())
+        assertEquals(listOf(outerOffset, siblingOffset), outsideSink.blocks.map { it.offset })
+        assertEquals(source, myFixture.editor.document.text)
+    }
+
+    fun testCallSiteModeSettingsPersistAndReset() {
         val settings = service<DispatcherSettings>()
         val saved = settings.getState()
         val configurable = DispatcherConfigurable()
@@ -133,35 +211,43 @@ class DispatcherEditorTest : BasePlatformTestCase() {
             val component = configurable.createComponent() as JPanel
             val callSiteRow = component.getComponent(0) as JPanel
             val selector = callSiteRow.getComponent(1) as JComboBox<*>
-            val automatic = component.getComponent(1) as JCheckBox
-            assertEquals(CallSiteBadgeMode.NONE, selector.selectedItem)
+            val onlyFunction = component.getComponent(1) as JCheckBox
+            assertEquals(2, component.componentCount)
+            assertEquals(CallSiteBadgeMode.DISPATCHER_CHANGES, selector.selectedItem)
+            assertFalse(onlyFunction.isSelected)
+            assertTrue(onlyFunction.isEnabled)
             assertEquals(
-                listOf("All calls", "Only calls that set a dispatcher", "Do not show (default)"),
+                listOf("All calls", "Only calls that set a dispatcher", "Do not show"),
                 CallSiteBadgeMode.entries.map { it.displayName },
             )
-            assertTrue(automatic.isSelected)
             assertFalse(configurable.isModified())
             selector.selectedItem = CallSiteBadgeMode.ALL
             assertTrue(configurable.isModified())
             configurable.apply()
             assertEquals(CallSiteBadgeMode.ALL, settings.callSiteMode)
+            assertFalse(settings.onlyInFunctionContainingCaret)
             assertTrue(settings.showCalls)
-            assertTrue(settings.automaticAnalysis)
             assertFalse(configurable.isModified())
             val restored = DispatcherSettings()
             restored.loadState(settings.getState())
             assertEquals(CallSiteBadgeMode.ALL, restored.callSiteMode)
             assertTrue(restored.showCalls)
-            automatic.isSelected = false
+            selector.selectedItem = CallSiteBadgeMode.DISPATCHER_CHANGES
+            onlyFunction.isSelected = true
             configurable.apply()
-            assertFalse(settings.automaticAnalysis)
-            settings.updateCalls(false)
+            assertEquals(CallSiteBadgeMode.DISPATCHER_CHANGES, settings.callSiteMode)
+            assertTrue(settings.onlyInFunctionContainingCaret)
+            selector.selectedItem = CallSiteBadgeMode.NONE
+            assertFalse(onlyFunction.isEnabled)
+            configurable.apply()
             assertEquals(CallSiteBadgeMode.NONE, settings.callSiteMode)
-            assertFalse(settings.automaticAnalysis)
+            assertTrue(settings.onlyInFunctionContainingCaret)
             selector.selectedItem = CallSiteBadgeMode.DISPATCHER_CHANGES
             configurable.reset()
             assertEquals(CallSiteBadgeMode.NONE, selector.selectedItem)
-            assertFalse(automatic.isSelected)
+            assertTrue(onlyFunction.isSelected)
+            assertFalse(onlyFunction.isEnabled)
+            assertFalse(configurable.isModified())
         } finally {
             settings.loadState(saved)
             configurable.disposeUIResources()
@@ -170,11 +256,11 @@ class DispatcherEditorTest : BasePlatformTestCase() {
 
     fun testLegacyCallVisibilityMigratesUnlessAnExplicitModeExists() {
         val settings = DispatcherSettings()
-        val legacyState = XmlSerializer.deserialize(
-            XmlSerializer.serialize(DispatcherHintSettings(showCalls = true)),
-            DispatcherHintSettings::class.java,
-        )
-        assertTrue(legacyState.showCalls)
+        val legacyXml = Element("state")
+            .addContent(Element("option").setAttribute("name", "automaticAnalysis").setAttribute("value", "false"))
+            .addContent(Element("option").setAttribute("name", "showCalls").setAttribute("value", "true"))
+        val legacyState = XmlSerializer.deserialize(legacyXml, DispatcherHintSettings::class.java)
+        assertEquals(true, legacyState.showCalls)
         assertNull(legacyState.callSiteMode)
         settings.loadState(legacyState)
         assertEquals(CallSiteBadgeMode.ALL, settings.callSiteMode)
@@ -188,6 +274,8 @@ class DispatcherEditorTest : BasePlatformTestCase() {
 
         settings.loadState(DispatcherHintSettings(showCalls = false))
         assertEquals(CallSiteBadgeMode.NONE, settings.callSiteMode)
+        settings.loadState(DispatcherHintSettings())
+        assertEquals(CallSiteBadgeMode.DISPATCHER_CHANGES, settings.callSiteMode)
         settings.loadState(
             DispatcherHintSettings(showCalls = true, callSiteMode = CallSiteBadgeMode.DISPATCHER_CHANGES),
         )
@@ -302,7 +390,7 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         val partialIoStart = ioStart + ioWidth
         val unknownStart = partialIoStart + partialWidth + separatorWidth
 
-        clickAt(presentation, mainStart + mainWidth / 2)
+        clickAt(presentation, mainStart + mainWidth / 2, moveFirst = false)
         assertEquals(listOf(Dispatcher.Main to mainOrigin), navigated)
         clickAt(presentation, partialMainStart + partialWidth / 2)
         clickAt(presentation, separatorStart + separatorWidth / 2)
@@ -346,6 +434,61 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         current = false
         chooseOrigin?.invoke(origin)
         assertTrue(opened.isEmpty())
+    }
+
+    fun testReusedReferencePresentationUsesUpdatedOriginsAndRejectsStaleChooserSelection() {
+        myFixture.configureByText("Badge.kt", "suspend fun load() {}")
+        val factory = PresentationFactory(myFixture.editor)
+        val oldOrigin = DispatcherOrigin("file:///project/Old.kt", 12, 3, "old caller")
+        val newOrigins = listOf(
+            DispatcherOrigin("file:///project/New.kt", 26, 5, "new caller one"),
+            DispatcherOrigin("file:///project/New.kt", 44, 8, "new caller two"),
+        )
+        var current = true
+        val opened = mutableListOf<DispatcherOrigin>()
+        var chooserOrigins: List<DispatcherOrigin>? = null
+        var chooseOrigin: ((DispatcherOrigin) -> Unit)? = null
+        fun presentation(origins: List<DispatcherOrigin>) = BadgePresentation.create(
+            factory,
+            myFixture.editor,
+            EffectSummary(
+                DispatcherSet(
+                    known = setOf(Dispatcher.IO),
+                    origins = mapOf(Dispatcher.IO to origins.toSet()),
+                ),
+            ),
+            "IO dispatcher.",
+            declaration = false,
+            isCurrentAnalysis = { current },
+            navigateDispatcher = { _, targetOrigins, isCurrent ->
+                DispatcherOriginNavigation.navigate(
+                    myFixture.editor,
+                    targetOrigins,
+                    isCurrent,
+                    openOrigin = opened::add,
+                    showChooser = { choices, onChosen ->
+                        chooserOrigins = choices
+                        chooseOrigin = onChosen
+                    },
+                )
+            },
+        )
+
+        val oldPresentation = presentation(listOf(oldOrigin))
+        val refreshedPresentation = presentation(newOrigins)
+        assertEquals(textOf(oldPresentation), textOf(refreshedPresentation))
+        val platformRoot = RecursivelyUpdatingRootPresentation(oldPresentation)
+        assertTrue(platformRoot.update(refreshedPresentation, myFixture.editor, factory))
+
+        val prefixWidth = factory.smallTextWithoutBackground("Dispatcher ").width
+        val ioWidth = factory.smallTextWithoutBackground("IO").width
+        clickAt(platformRoot, 3 + prefixWidth + ioWidth / 2, moveFirst = false)
+        assertEquals(newOrigins, chooserOrigins)
+        assertTrue(opened.isEmpty())
+
+        current = false
+        chooseOrigin?.invoke(newOrigins.first())
+        assertTrue("An origin chooser opened before reanalysis must not navigate after it.", opened.isEmpty())
     }
 
     fun testNavigationAcceptsUnsavedDocumentOffsetsAndRejectsOffsetsPastDocument() {
@@ -392,11 +535,19 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         "Resolved dispatcher.",
     )
 
-    private fun render(result: FileAnalysis, settings: DispatcherHintSettings, sink: RecordingSink) {
-        BadgePresentation.render(PresentationFactory(myFixture.editor), result, myFixture.editor, settings, sink)
+    private fun render(
+        result: FileAnalysis,
+        settings: DispatcherHintSettings,
+        sink: RecordingSink,
+        eligibleCallOffsets: Set<Int>? = null,
+    ) {
+        BadgePresentation.render(
+            PresentationFactory(myFixture.editor), result, myFixture.editor, settings, sink,
+            eligibleCallOffsets = eligibleCallOffsets,
+        )
     }
 
-    private fun clickAt(presentation: InlayPresentation, x: Int) {
+    private fun clickAt(presentation: InlayPresentation, x: Int, moveFirst: Boolean = true) {
         val y = presentation.height / 2
         val moved = MouseEvent(
             myFixture.editor.contentComponent,
@@ -420,7 +571,7 @@ class DispatcherEditorTest : BasePlatformTestCase() {
             MouseEvent.BUTTON1,
         )
         val point = Point(x, y)
-        presentation.mouseMoved(moved, point)
+        if (moveFirst) presentation.mouseMoved(moved, point)
         presentation.mouseClicked(clicked, point)
         presentation.mouseExited()
     }
@@ -473,6 +624,7 @@ class DispatcherEditorTest : BasePlatformTestCase() {
             is TextInlayPresentation -> presentation.text
             is SequencePresentation -> presentation.presentations.joinToString("") { textOf(it) }
             is StaticDelegatePresentation -> textOf(presentation.presentation)
+            is StatefulPresentation<*> -> textOf(presentation.currentPresentation)
             else -> ""
         }
 
@@ -482,6 +634,7 @@ class DispatcherEditorTest : BasePlatformTestCase() {
             }
             presentation is SequencePresentation -> presentation.presentations.flatMap { coloredEntries(it) }
             presentation is StaticDelegatePresentation -> coloredEntries(presentation.presentation)
+            presentation is StatefulPresentation<*> -> coloredEntries(presentation.currentPresentation)
             else -> emptyList()
         }
     }
