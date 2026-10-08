@@ -1,3 +1,9 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme-hero-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/readme-hero-light.png">
+  <img src="docs/images/readme-hero-light.png" alt="Dispatcher Analyzer — See dispatcher context in your Kotlin code. An Android Studio plugin, illustrated with Main, IO, and Default dispatcher paths.">
+</picture>
+
 # Dispatcher Analyzer
 
 Android Studio plugin for understanding dispatcher usage in Kotlin `suspend` functions.
