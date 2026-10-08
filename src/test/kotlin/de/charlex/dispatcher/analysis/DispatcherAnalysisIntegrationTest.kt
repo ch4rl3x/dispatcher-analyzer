@@ -48,6 +48,37 @@ class DispatcherAnalysisIntegrationTest : BasePlatformTestCase() {
         assertTrue(badge.summary.badgeSegments().filter { it.dispatcher != null }.all { it.partial })
     }
 
+    fun testTrailingLambdaCallsUseDistinctHeaderAnchors() {
+        val file = source("""
+            import kotlinx.coroutines.*
+            private val worker = Dispatchers.IO
+            private suspend fun mixedWorkload() {
+                delay(1)
+                coroutineScope {
+                    coroutineScope<Int> {
+                        withContext(worker) { delay(2); 42 }
+                    }
+                }
+                withContext(NonCancellable, block = { delay(3) })
+            }
+            fun start() { CoroutineScope(Dispatchers.Main).launch { mixedWorkload() } }
+        """)
+        val result = analyze(file)
+        val headers = listOf(
+            "delay(1)", "coroutineScope", "coroutineScope<Int>", "withContext(worker)",
+            "delay(2)", "delay(3)", "withContext(NonCancellable, block = { delay(3) })", "mixedWorkload()",
+        )
+        val expected = headers.map { header ->
+            val start = if (header == "mixedWorkload()") file.text.lastIndexOf(header) else file.text.indexOf(header)
+            start + header.length
+        }.toSet()
+        assertEquals(expected, result.calls.keys)
+        assertEquals(setOf(Dispatcher.IO), call(file, result, "withContext(worker)").summary.dispatchers.known)
+        assertEquals(setOf(Dispatcher.Main), call(file, result, "delay(1)").summary.dispatchers.known)
+        assertEquals(setOf(Dispatcher.IO), call(file, result, "delay(2)").summary.dispatchers.known)
+        assertEquals(setOf(Dispatcher.Main), call(file, result, "delay(3)").summary.dispatchers.known)
+    }
+
     fun testPublicEntryRetainsUnknownAlongsideKnownCallers() {
         val file = source("""
             import kotlinx.coroutines.*

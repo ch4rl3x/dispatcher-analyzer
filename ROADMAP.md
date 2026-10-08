@@ -26,6 +26,8 @@ The presentation prototype and dispatcher model can proceed in parallel after bo
 
 - Kotlin/JVM source, named suspend functions, direct calls, standard coroutine builders, and resolved withContext.
 - Declaration badges use `called within Dispatcher …` for incoming contexts; call badges use `Dispatcher …` for callee effects. Preserve Unknown and label proven partial coverage.
+- Place call badges immediately after the call's argument list, before any trailing lambda; never after its closing brace. Calls without parentheses use the callee name or type arguments as the anchor.
+- Omit redundant `withContext` badges when its argument directly identifies a standard dispatcher. Keep badges for value aliases, unresolved values, and ordinary calls whose callee switches dispatchers internally.
 - Functions without project code calls have no declaration badge; public visibility and documentation references alone are insufficient. Declaration badges have no plugin-specific off switch. A dropdown selects all call-site badges, only dispatcher-setting calls (default), or none. An optional checkbox limits call badges to the function containing the caret. Suspend expect declarations and calls are excluded.
 - Analyze automatically after project import and saved changes, including IDE autosave. Typing cancels and invalidates work without starting a new analysis. No manual mode or side panel is needed.
 - Provide a Reanalyze file icon in the editor toolbar to save and force-refresh the active file and its affected dependencies.
@@ -37,4 +39,4 @@ The presentation prototype and dispatcher model can proceed in parallel after bo
 
 ## Repository status
 
-The alpha implementation, Gradle wrapper, demo, installation guide, and downloadable CI artifact are present. All 125 local tests, packaging, Plugin Verifier, and native light/dark editor smoke checks pass on the pinned Android Studio target. GitHub Actions runs the same automated checks before exposing the plugin ZIP. See the [validation record](docs/validation.md).
+The alpha implementation, Gradle wrapper, demo, installation guide, and downloadable CI artifact are present. All 134 local tests, packaging, and Plugin Verifier pass on the pinned Android Studio target. Earlier native light/dark smoke checks passed; the latest badge-placement change is covered by IDE tests, with its native visual recheck unavailable. GitHub Actions runs the same automated checks before exposing the plugin ZIP. See the [validation record](docs/validation.md).

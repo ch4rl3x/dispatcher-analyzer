@@ -13,7 +13,9 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.DataOutputStream
+import java.nio.ByteBuffer
 import java.nio.file.Files
+import java.security.MessageDigest
 
 class AnalysisDiskCacheTest {
     @Test
@@ -89,14 +91,32 @@ class AnalysisDiskCacheTest {
     }
 
     @Test
+    fun cachesWithLegacyCallAnchorsAreDiscarded() = runBlocking {
+        val projectDirectory = Files.createTempDirectory("dispatcher-cache-legacy-anchors")
+        try {
+            val cache = AnalysisDiskCache(projectDirectory)
+            val expected = sampleAnalysis()
+            cache.save(expected)
+            val payload = Files.readAllBytes(cache.path).dropLast(32).toByteArray()
+            ByteBuffer.wrap(payload).putInt(4, 1)
+            Files.write(cache.path, payload + MessageDigest.getInstance("SHA-256").digest(payload))
+
+            assertNull(cache.load(expected.environmentFingerprint))
+        } finally {
+            projectDirectory.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun malformedDeclaredLengthCannotExceedActualFileBytes() = runBlocking {
         val projectDirectory = Files.createTempDirectory("dispatcher-cache-length")
         try {
             val cache = AnalysisDiskCache(projectDirectory)
-            Files.createDirectories(cache.path.parent)
+            cache.save(sampleAnalysis())
+            val version = ByteBuffer.wrap(Files.readAllBytes(cache.path)).getInt(4)
             DataOutputStream(Files.newOutputStream(cache.path)).use { output ->
                 output.writeInt(0x44414E41)
-                output.writeInt(1)
+                output.writeInt(version)
                 output.writeInt(Int.MAX_VALUE)
                 output.write(ByteArray(32))
             }

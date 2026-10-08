@@ -18,6 +18,18 @@ internal data class ContextValue(val dispatchers: DispatcherSet, val replaces: B
 internal class ContextResolver(private val api: KotlinAnalysisAdapter) {
     fun context(expression: KtExpression?): ContextValue = context(expression, mutableSetOf())
 
+    fun isDirectDispatcher(expression: KtExpression?): Boolean {
+        if (expression == null) return false
+        if (expression is KtParenthesizedExpression) return isDirectDispatcher(expression.expression)
+        return when (api.value(expression)?.identity) {
+            "kotlinx.coroutines.Dispatchers.Main", "kotlinx.coroutines.Dispatchers.IO",
+            "kotlinx.coroutines.Dispatchers.Default", "kotlinx.coroutines.Dispatchers.Unconfined" -> true
+            "kotlinx.coroutines.MainCoroutineDispatcher.immediate" ->
+                isDirectDispatcher((expression as? KtQualifiedExpression)?.receiverExpression)
+            else -> false
+        }
+    }
+
     private fun context(expression: KtExpression?, active: MutableSet<KtExpression>): ContextValue {
         ProgressManager.checkCanceled()
         if (expression == null) return KEEP

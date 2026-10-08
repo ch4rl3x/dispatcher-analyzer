@@ -80,8 +80,9 @@ class SelectionAnalysisTest : BasePlatformTestCase() {
         """)
         val result = analyze(file)
         assertFalse(lastCall(file, result, "load()").summary.setsDispatcher)
-        val childCall = "withContext(Dispatchers.Default) { delay(1) }"
-        assertTrue(lastCall(file, result, childCall).summary.setsDispatcher)
+        val childCall = "withContext(Dispatchers.Default)"
+        assertFalse(result.calls.containsKey(file.text.indexOf(childCall) + childCall.length))
+        assertEquals(setOf(Dispatcher.Default), lastCall(file, result, "delay(1)").summary.dispatchers.known)
     }
 
     fun testExplicitRunBlockingCountsAsSynchronousSelection() {

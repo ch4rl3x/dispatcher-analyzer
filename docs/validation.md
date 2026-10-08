@@ -4,10 +4,11 @@ Validated on 2026-10-08 with Android Studio Rabbit 1, build `AI-262.9437.185.262
 
 ## Automated checks
 
-- All 125 semantic and IDE tests pass, covering dispatcher identities, incoming contexts, execution effects, scoped Room evidence, source navigation, settings migration, caret filtering, startup/save triggers, incremental dependencies, cache restart/corruption/deletion, cancellation, indexing, incomplete code, and disposal.
+- All 134 semantic and IDE tests pass, covering dispatcher identities, incoming contexts, execution effects, scoped Room evidence, source navigation, settings migration, caret filtering, startup/save triggers, incremental dependencies, cache restart/corruption/deletion, cancellation, indexing, incomplete code, and disposal.
 - Complete-source fixtures cover 1,050 functions, 130 source files, and a 71-function call chain. No project-size or fixed-point-round caps are used.
 - `test`, `buildPlugin`, `verifyPluginProjectConfiguration`, and `verifyPlugin` pass with the pinned IDE. Plugin Verifier reports compatibility without internal API usage. Experimental analysis/editor APIs limit the advertised range to platform 262; the exact build above is the tested target.
 - Editor fixtures check positions, unchanged source and line counts, copy, formatting, undo, zoom, settings, and live caret updates. Suspend expect declarations and calls are excluded.
+- Placement regressions cover trailing-lambda headers, redundant direct-dispatcher badge suppression, value/import aliases, shadowed symbols, wrapper effects, saved edits, and rejection of caches with old badge positions.
 - The standalone demo compiles with its Gradle 9.7.1 wrapper and JDK 25.
 
 ## Performance sample
@@ -17,6 +18,8 @@ A fixture with 100 suspend functions and 200 suspend calls took 289 ms for its f
 Regression thresholds are 30 seconds for initial analysis and 1 second for cached access, allowing slower CI machines. Crossing a threshold fails the test; it never truncates analysis. Source resolution reuses unchanged file graphs and updates affected dependencies after saves. Structural or environment changes can require full analysis. Background work is cancellable and coalesces saves; typing alone does not start analysis. CPU and memory use still grow with project size.
 
 ## Native sandbox checks
+
+The latest badge-placement change passed all automated checks, but its native visual recheck on 2026-10-08 remains unverified: the existing native sandbox launcher failed to start, and the Gradle sandbox opened but could not be accessed by the available UI automation. The light/dark results below describe the earlier baseline.
 
 The imported demo displays the required mixed palette in [Islands Light](images/dispatcher-light.png) and [Islands Dark](images/dispatcher-dark.png), with no source edits or added source lines.
 

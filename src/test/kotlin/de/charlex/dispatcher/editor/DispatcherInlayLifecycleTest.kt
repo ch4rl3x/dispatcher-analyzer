@@ -3,11 +3,13 @@ package de.charlex.dispatcher.editor
 import com.intellij.codeInsight.hints.InlayHintsSwitch
 import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.testFramework.PsiTestUtil
 import com.intellij.testFramework.PlatformTestUtil
@@ -15,6 +17,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase
 import de.charlex.dispatcher.analysis.DispatcherAnalysisListener
 import de.charlex.dispatcher.analysis.DispatcherAnalysisService
+import de.charlex.dispatcher.model.Dispatcher
 import org.jetbrains.kotlin.psi.KtFile
 import org.junit.Assert.assertNotEquals
 import java.io.File
@@ -22,6 +25,120 @@ import java.awt.datatransfer.DataFlavor
 
 class DispatcherInlayLifecycleTest : BasePlatformTestCase() {
     override fun getProjectDescriptor() = LightJavaCodeInsightFixtureTestCase.JAVA_21
+
+    fun testExplicitDispatcherCallsStayHiddenAfterSettingsAndSavedEdits() {
+        System.getProperty("dispatcher.fixture.libraries").split(File.pathSeparator).forEach { path ->
+            val library = File(path)
+            PsiTestUtil.addLibrary(myFixture.module, library.nameWithoutExtension, library.parent, library.name)
+        }
+        val settings = service<DispatcherSettings>()
+        val saved = settings.getState()
+        try {
+            settings.loadState(
+                DispatcherHintSettings(callSiteMode = CallSiteBadgeMode.ALL, onlyInFunctionContainingCaret = true),
+            )
+            val source = """
+                import kotlinx.coroutines.Dispatchers
+                import kotlinx.coroutines.delay
+                import kotlinx.coroutines.withContext
+
+                private suspend fun readFromDisk() = delay(2)
+                private suspend fun mixedWorkload() {
+                    delay(1)
+                    withContext(Dispatchers.IO) {
+                        readFromDisk()
+                    }
+                }
+                suspend fun entry() = mixedWorkload()
+            """.trimIndent()
+            val file = myFixture.addFileToProject("TrailingLambdaBadges.kt", source) as KtFile
+            myFixture.configureFromExistingVirtualFile(file.virtualFile)
+            val editor = myFixture.editor
+            editor.caretModel.moveToOffset(source.indexOf("delay(1)"))
+            FileDocumentManager.getInstance().saveAllDocuments()
+            val analysis = project.service<DispatcherAnalysisService>()
+            analysis.startAnalysis()
+            PlatformTestUtil.waitWithEventsDispatching(
+                "Initial trailing-lambda analysis",
+                { analysis.hasCurrentAnalysis(file) },
+                30,
+            )
+
+            fun headerOffset(text: String, dispatcher: String): Int {
+                val header = "withContext(Dispatchers.$dispatcher)"
+                return text.indexOf(header) + header.length
+            }
+            fun lambdaEndOffset(text: String) = text.indexOf('}', text.indexOf("withContext(")) + 1
+            val header = headerOffset(source, "IO")
+            val lambdaEnd = lambdaEndOffset(source)
+            val delayCall = source.indexOf("delay(1)") + "delay(1)".length
+            val readCall = source.lastIndexOf("readFromDisk()") + "readFromDisk()".length
+            val caller = source.lastIndexOf("mixedWorkload()") + "mixedWorkload()".length
+            myFixture.doHighlighting()
+            awaitInlineOffsets(editor, source.length) {
+                header !in it && delayCall in it && readCall in it && lambdaEnd !in it && caller !in it
+            }
+            val declarationCount = editor.inlayModel.getBlockElementsInRange(0, source.length).size
+            assertTrue("Called suspend functions retain declaration badges", declarationCount >= 2)
+            assertEquals(source, editor.document.text)
+
+            settings.updateCalls(CallSiteBadgeMode.DISPATCHER_CHANGES)
+            myFixture.doHighlighting()
+            awaitInlineOffsets(editor, source.length) {
+                header !in it && delayCall !in it && readCall !in it && lambdaEnd !in it
+            }
+            assertEquals(declarationCount, editor.inlayModel.getBlockElementsInRange(0, source.length).size)
+
+            editor.caretModel.moveToOffset(caller - 1)
+            myFixture.doHighlighting()
+            awaitInlineOffsets(editor, source.length) { caller in it && header !in it && lambdaEnd !in it }
+            val initialCallerSummary = ReadAction.compute<Set<Dispatcher>, RuntimeException> {
+                analysis.requestAnalysis(file).calls.getValue(caller).summary.dispatchers.known
+            }
+            assertEquals(setOf(Dispatcher.IO), initialCallerSummary)
+
+            val revised = source.replace("Dispatchers.IO", "Dispatchers.Default")
+            WriteCommandAction.runWriteCommandAction(project) {
+                editor.document.setText(revised)
+                PsiDocumentManager.getInstance(project).commitAllDocuments()
+            }
+            assertFalse(analysis.hasCurrentAnalysis(file))
+            val revisedCaller = revised.lastIndexOf("mixedWorkload()") + "mixedWorkload()".length
+            editor.caretModel.moveToOffset(revisedCaller - 1)
+            FileDocumentManager.getInstance().saveDocument(editor.document)
+            PlatformTestUtil.waitWithEventsDispatching(
+                "Saved trailing-lambda analysis",
+                { analysis.hasCurrentAnalysis(file) },
+                30,
+            )
+            myFixture.doHighlighting()
+            val revisedHeader = headerOffset(revised, "Default")
+            val revisedLambdaEnd = lambdaEndOffset(revised)
+            awaitInlineOffsets(editor, revised.length) {
+                revisedCaller in it && caller !in it && revisedHeader !in it && revisedLambdaEnd !in it
+            }
+            val revisedCallerSummary = ReadAction.compute<Set<Dispatcher>, RuntimeException> {
+                analysis.requestAnalysis(file).calls.getValue(revisedCaller).summary.dispatchers.known
+            }
+            assertEquals(setOf(Dispatcher.Default), revisedCallerSummary)
+            assertEquals(declarationCount, editor.inlayModel.getBlockElementsInRange(0, revised.length).size)
+            assertEquals(revised, editor.document.text)
+
+            editor.caretModel.moveToOffset(revised.indexOf("delay(1)"))
+            myFixture.doHighlighting()
+            awaitInlineOffsets(editor, revised.length) {
+                revisedCaller !in it && revisedHeader !in it && revisedLambdaEnd !in it
+            }
+
+            settings.updateCalls(CallSiteBadgeMode.NONE)
+            myFixture.doHighlighting()
+            awaitInlineOffsets(editor, revised.length) { revisedHeader !in it && revisedLambdaEnd !in it }
+            assertEquals(declarationCount, editor.inlayModel.getBlockElementsInRange(0, revised.length).size)
+            assertEquals(revised, editor.document.text)
+        } finally {
+            settings.loadState(saved)
+        }
+    }
 
     fun testCaretMovementRefreshesCallBadgesBetweenFunctions() {
         System.getProperty("dispatcher.fixture.libraries").split(File.pathSeparator).forEach { path ->
@@ -95,9 +212,10 @@ class DispatcherInlayLifecycleTest : BasePlatformTestCase() {
             settings.loadState(DispatcherHintSettings(callSiteMode = CallSiteBadgeMode.NONE))
             val source = """
                 import kotlinx.coroutines.Dispatchers
+                import kotlinx.coroutines.delay
                 import kotlinx.coroutines.withContext
 
-                private suspend fun load( ){}
+                private suspend fun load( ) = withContext( Dispatchers.IO ){delay( 1 )}
                 suspend fun refresh( ){
                     load( )
                     withContext( Dispatchers.IO ){load( )}

@@ -146,7 +146,7 @@ internal class SourceGraph(
             val body = if (block == null) unknown("withContext body is not an immediate lambda")
                 else ensureExecution(walk(block.bodyExpression, switched, switched, owner), switched)
             val effect = contextSelection(body, selected)
-            record(expression, owner, null, context, effect)
+            if (!contexts.isDirectDispatcher(args["context"])) record(expression, owner, null, context, effect)
             return group(argumentEffects + effect)
         }
         if (id in SCOPES) {
@@ -240,8 +240,11 @@ internal class SourceGraph(
         context: DispatcherSet,
         effect: Effect,
     ) {
+        val anchor = if (expression.lambdaArguments.isEmpty()) expression else {
+            expression.valueArgumentList ?: expression.typeArgumentList ?: expression.calleeExpression ?: return
+        }
         calls += SourceCall(expression.containingFile.virtualFile?.url ?: expression.containingFile.name,
-            expression.textRange.endOffset, owner, target, context, effect)
+            anchor.textRange.endOffset, owner, target, context, effect)
     }
 
     companion object {
