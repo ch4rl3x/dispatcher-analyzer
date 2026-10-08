@@ -3,6 +3,7 @@
 *.iml
 .gradle/
 .kotlin/
+node_modules/
 .intellijPlatform/
 **/build/
 out/

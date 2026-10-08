@@ -21,13 +21,15 @@ Badges describe static analysis, not which dispatchers are safe or permitted. A 
 
 The alpha targets Android Studio Rabbit 1 (`2026.2.1.8`, build `AI-262.9437.185.2621.16467767`, platform 262). It is not yet published on JetBrains Marketplace.
 
-1. Sign in to GitHub and open the [Build workflow](https://github.com/ch4rl3x/dispatcher-analyzer/actions/workflows/build.yml). Select a successful run for `main`.
-2. Under **Artifacts**, download **dispatcher-analyzer-plugin**. Extract GitHub’s downloaded archive once to obtain `dispatcher-analyzer-<version>.zip`. Keep this inner plugin ZIP intact.
+1. Open [GitHub Releases](https://github.com/ch4rl3x/dispatcher-analyzer/releases) and select the newest release, including prereleases while the plugin is in alpha.
+2. Under **Assets**, download `dispatcher-analyzer-<version>.zip`. Keep this installable plugin ZIP intact; the adjacent `.sha256` file provides its checksum.
 3. In Android Studio, open **Settings > Plugins** (on macOS: **Android Studio > Settings**, called Preferences in some versions).
-4. Open the gear menu, select **Install Plugin from Disk…**, choose the inner plugin ZIP, and confirm. Restart Android Studio if prompted.
+4. Open the gear menu, select **Install Plugin from Disk…**, choose the downloaded plugin ZIP, and confirm. Restart Android Studio if prompted.
 5. Open your project and let import/indexing finish. Analysis runs automatically; configure badges under **Settings > Tools > Dispatcher Analyzer**.
 
-To update, download a newer successful build and repeat the disk-install steps. Build artifacts expire after **14 days**; maintainers can use **Run workflow** on the Build page to generate a fresh one. The workflow also runs on pushes and pull requests and uploads validation reports separately. [GitHub artifact downloads](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts) require sign-in; the IDE follows the standard [plugin-from-disk installation flow](https://www.jetbrains.com/help/idea/managing-plugins.html#install_plugin_from_disk).
+To update, download a newer release and repeat the disk-install steps. Release assets provide persistent downloads without a GitHub sign-in or an extra archive to extract. The pipeline attaches files only to releases; ordinary builds and pull requests run validation without uploaded artifacts. Installation uses the standard [plugin-from-disk flow](https://www.jetbrains.com/help/idea/managing-plugins.html#install_plugin_from_disk).
+
+Validated changes on `main` produce releases automatically from Conventional Commits: `fix`/`perf` advance the patch version, `feat` the minor version, and breaking changes the major version. The first release is `0.1.0-alpha.1`; subsequent alpha releases advance the core version and retain `-alpha.1`. See the [release workflow](docs/development.md#releases) for examples and recovery behavior.
 
 Alternatively, build locally with JDK 25 and `./gradlew buildPlugin`, then install the ZIP from `build/distributions/` using steps 3–4.
 

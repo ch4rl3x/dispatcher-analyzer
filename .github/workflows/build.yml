@@ -2,6 +2,7 @@ name: Build
 
 on:
   push:
+    branches: ['**']
   pull_request:
   workflow_dispatch:
 
@@ -10,28 +11,58 @@ permissions:
 
 jobs:
   verify:
+    if: github.event_name == 'pull_request' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '25'
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew test buildPlugin verifyPluginProjectConfiguration verifyPlugin
-      - uses: actions/upload-artifact@v4
-        if: success()
+
+  release:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release-main
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
         with:
-          name: dispatcher-analyzer-plugin
-          path: build/distributions/*.zip
-          if-no-files-found: error
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
         with:
-          name: validation-reports
-          path: |
-            build/reports/
-            build/test-results/
-          if-no-files-found: warn
-          retention-days: 14
+          node-version: '24.13.0'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - name: Plan release from Conventional Commits
+        id: plan
+        run: node scripts/plan-release.mjs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Validate and build the planned version
+        env:
+          PLUGIN_VERSION: ${{ steps.plan.outputs.version }}
+        run: ./gradlew test buildPlugin verifyPluginProjectConfiguration verifyPlugin "-PpluginVersion=$PLUGIN_VERSION"
+      - name: Publish verified release assets
+        if: steps.plan.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/publish-release.mjs

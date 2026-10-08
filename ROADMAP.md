@@ -17,7 +17,7 @@ Deliver an Android Studio plugin with editor-only dispatcher badges above suspen
 | 9 | [Add call-site badge display modes](https://github.com/ch4rl3x/dispatcher-analyzer/issues/9) | All calls, dispatcher-setting calls, or none | #6 |
 | 10 | [Cache automatic analysis after saved changes](https://github.com/ch4rl3x/dispatcher-analyzer/issues/10) | Import/save triggers, persistent cache, per-file refresh icon | #6, #9 |
 | 11 | [Limit call badges to the caret function](https://github.com/ch4rl3x/dispatcher-analyzer/issues/11) | Filtered default, optional caret-based call badges | #9 |
-| 12 | [Publish downloadable plugin build artifacts](https://github.com/ch4rl3x/dispatcher-analyzer/issues/12) | Manual CI trigger and dedicated plugin ZIP artifact | #10, #11 |
+| 12 | [Publish downloadable plugin build artifacts](https://github.com/ch4rl3x/dispatcher-analyzer/issues/12) | Manual CI trigger and installable plugin ZIP distribution | #10, #11 |
 | 13 | [Document plugin installation before Marketplace](https://github.com/ch4rl3x/dispatcher-analyzer/issues/13) | Download, disk installation, and update instructions | #12 |
 
 The presentation prototype and dispatcher model can proceed in parallel after bootstrap. Navigation, call-site display modes, and saved-file caching extend the integrated badges before the final build-distribution and installation tasks, followed by alpha validation. Each issue includes acceptance criteria; the alpha is complete when all thirteen pass.
@@ -39,4 +39,4 @@ The presentation prototype and dispatcher model can proceed in parallel after bo
 
 ## Repository status
 
-The alpha implementation, Gradle wrapper, demo, installation guide, and downloadable CI artifact are present. All 134 local tests, packaging, and Plugin Verifier pass on the pinned Android Studio target. Earlier native light/dark smoke checks passed; the latest badge-placement change is covered by IDE tests, with its native visual recheck unavailable. GitHub Actions runs the same automated checks before exposing the plugin ZIP. See the [validation record](docs/validation.md).
+The alpha implementation, Gradle wrapper, demo, installation guide, and release automation are present. All 134 local tests, packaging, and Plugin Verifier pass on the pinned Android Studio target. Earlier native light/dark smoke checks passed; the latest badge-placement change is covered by IDE tests, with its native visual recheck unavailable. GitHub Actions validates changes before releasing qualifying Conventional Commits on `main` with a SemVer tag, installable ZIP, and checksum. Files are attached only to releases; normal workflow runs upload no artifacts. Release versions are injected during the build without version-bump commits. See the [release rules](docs/development.md#releases) and [validation record](docs/validation.md).

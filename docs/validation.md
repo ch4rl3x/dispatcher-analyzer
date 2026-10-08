@@ -32,6 +32,8 @@ The imported demo displays the required mixed palette in [Islands Light](images/
 
 ## Distribution
 
-The installable alpha ZIP is generated in `build/distributions/`. The [Build workflow](https://github.com/ch4rl3x/dispatcher-analyzer/actions/workflows/build.yml) runs the full checks and uploads `dispatcher-analyzer-plugin` separately from `validation-reports`, retaining both for 14 days. See the [installation guide](../README.md#install-and-configure).
+The installable alpha ZIP is generated in `build/distributions/`. The [Build workflow](https://github.com/ch4rl3x/dispatcher-analyzer/actions/workflows/build.yml) runs release-tooling tests and the full Gradle checks before publication. Qualifying Conventional Commits on `main` produce versioned [GitHub releases](https://github.com/ch4rl3x/dispatcher-analyzer/releases) with the plugin ZIP and its `.sha256` checksum. Pull requests and ordinary builds upload no artifacts or reports. See the [installation guide](../README.md#install-and-configure) and [release rules](development.md#releases).
+
+All 21 release-tooling tests pass, covering version selection, prerelease progression, missing or conflicting tags, repeated runs, and draft recovery. Actionlint 1.7.12 validates the workflow. The publisher checks the ZIP filename and plugin descriptor against the planned version, verifies uploaded asset sizes and available digests, then verifies the published tag's commit. Marketplace publication is separate.
 
 Flow/flowOn, general higher-order inference, DI, multiplatform analysis, and suspend expect functions remain outside this alpha. Room evidence is limited to the verified cases in the [analysis contract](analysis-model.md).
