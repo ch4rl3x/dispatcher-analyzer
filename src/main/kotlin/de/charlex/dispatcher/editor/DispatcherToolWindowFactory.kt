@@ -3,6 +3,7 @@ package de.charlex.dispatcher.editor
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
@@ -20,6 +21,7 @@ class DispatcherToolWindowFactory : ToolWindowFactory, DumbAware {
         val status = JLabel()
         val mode = JLabel()
         val run = JButton("Analyze project")
+        val settingsButton = JButton("Settings…")
         val analysis = project.service<DispatcherAnalysisService>()
         fun refresh() {
             status.text = "Status: ${analysis.analysisStatus}"
@@ -37,7 +39,11 @@ class DispatcherToolWindowFactory : ToolWindowFactory, DumbAware {
                 add(status)
                 add(mode)
             }, BorderLayout.NORTH)
-            add(JPanel(BorderLayout()).apply { add(run, BorderLayout.NORTH) }, BorderLayout.CENTER)
+            add(JPanel().apply {
+                layout = BoxLayout(this, BoxLayout.Y_AXIS)
+                add(run)
+                add(settingsButton)
+            }, BorderLayout.CENTER)
         }
         val content = ContentFactory.getInstance().createContent(panel, "", false)
         project.messageBus.connect(content).subscribe(
@@ -49,6 +55,9 @@ class DispatcherToolWindowFactory : ToolWindowFactory, DumbAware {
         run.addActionListener {
             analysis.runAnalysisNow()
             refresh()
+        }
+        settingsButton.addActionListener {
+            ShowSettingsUtil.getInstance().showSettingsDialog(project, DispatcherConfigurable::class.java)
         }
         refresh()
         toolWindow.contentManager.addContent(content)

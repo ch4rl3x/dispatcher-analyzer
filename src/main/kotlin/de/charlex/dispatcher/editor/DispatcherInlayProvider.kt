@@ -57,8 +57,17 @@ class DispatcherInlayProvider : InlayHintsProvider<NoSettings> {
                 if (collected || file.project.isDisposed) return false
                 collected = true
                 ProgressManager.checkCanceled()
-                val result = file.project.service<DispatcherAnalysisService>().requestAnalysis(file)
-                BadgePresentation.render(factory, result, editor, service<DispatcherSettings>().getState(), sink)
+                val analysis = file.project.service<DispatcherAnalysisService>()
+                val fileUrl = file.virtualFile?.url ?: return false
+                val result = analysis.requestAnalysis(file)
+                BadgePresentation.render(
+                    factory,
+                    result,
+                    editor,
+                    service<DispatcherSettings>().getState(),
+                    sink,
+                    fileUrl,
+                ) { analysis.isCurrentAnalysis(fileUrl, result) }
                 return false
             }
         }

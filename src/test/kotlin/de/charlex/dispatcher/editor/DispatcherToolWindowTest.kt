@@ -40,10 +40,13 @@ class DispatcherToolWindowTest : BasePlatformTestCase() {
             val window = manager.registerToolWindow(id) { anchor = ToolWindowAnchor.RIGHT }
             DispatcherToolWindowFactory().createToolWindowContent(project, window)
             val components = descendants(window.contentManager.contents.single().component).toList()
-            val button = components.filterIsInstance<JButton>().single()
+            val buttons = components.filterIsInstance<JButton>()
+            val button = buttons.single { it.text == "Analyze project" }
+            val settingsButton = buttons.single { it.text == "Settings…" }
             val status = components.filterIsInstance<JLabel>().single { it.text.startsWith("Status:") }
             val mode = components.filterIsInstance<JLabel>().single { it.text.startsWith("Automatic analysis") }
             assertEquals("Analyze project", button.text)
+            assertEquals("Settings…", settingsButton.text)
             assertEquals("Automatic analysis is off.", mode.text)
 
             button.doClick()
@@ -57,6 +60,23 @@ class DispatcherToolWindowTest : BasePlatformTestCase() {
             assertTrue(button.isEnabled)
             assertTrue(settings.showCalls)
             assertFalse(settings.automaticAnalysis)
+
+            settings.update(showCalls = true, automaticAnalysis = true)
+            PlatformTestUtil.waitWithEventsDispatching(
+                "Automatic mode should update the tool window",
+                { mode.text == "Automatic analysis is on." && status.text == "Status: Up to date" },
+                30,
+            )
+            assertTrue(analysis.hasCurrentAnalysis(file))
+
+            settings.update(showCalls = true, automaticAnalysis = false)
+            PlatformTestUtil.waitWithEventsDispatching(
+                "Mode changes should publish even when the snapshot remains current",
+                { mode.text == "Automatic analysis is off." && status.text == "Status: Up to date" },
+                5,
+            )
+            assertTrue(analysis.hasCurrentAnalysis(file))
+            assertTrue(settings.showCalls)
         } finally {
             if (manager.getToolWindow(id) != null) manager.unregisterToolWindow(id)
             settings.loadState(saved)

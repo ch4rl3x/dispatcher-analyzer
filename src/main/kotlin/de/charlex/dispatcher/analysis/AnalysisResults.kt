@@ -22,6 +22,7 @@ internal data class SourceCall(
 
 internal sealed interface Effect {
     data class Work(val summary: EffectSummary) : Effect
+    data class ContextSelection(val effect: Effect) : Effect
     data class Invoke(
         val target: FunctionKey,
         val context: de.charlex.dispatcher.model.DispatcherSet,

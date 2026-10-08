@@ -1,0 +1,157 @@
+package de.charlex.dispatcher.analysis
+
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.components.service
+import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.testFramework.PlatformTestUtil
+import com.intellij.testFramework.PsiTestUtil
+import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase
+import de.charlex.dispatcher.editor.DispatcherHintSettings
+import de.charlex.dispatcher.editor.DispatcherSettings
+import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtNamedFunction
+import java.io.File
+
+class DeclarationEvidenceTest : BasePlatformTestCase() {
+    private lateinit var previousSettings: DispatcherHintSettings
+
+    override fun getProjectDescriptor() = LightJavaCodeInsightFixtureTestCase.JAVA_21
+
+    override fun setUp() {
+        super.setUp()
+        previousSettings = service<DispatcherSettings>().state
+        service<DispatcherSettings>().update(false, false)
+        System.getProperty("dispatcher.fixture.libraries").split(File.pathSeparator).forEach { path ->
+            val library = File(path)
+            PsiTestUtil.addLibrary(module, library.nameWithoutExtension, library.parent, library.name)
+        }
+    }
+
+    override fun tearDown() {
+        try {
+            service<DispatcherSettings>().update(previousSettings.showCalls, previousSettings.automaticAnalysis)
+        } finally {
+            super.tearDown()
+        }
+    }
+
+    fun testUnusedPublicAndPrivateFunctionsIgnoreDocumentationReferences() {
+        val file = source("""
+            suspend fun externallyCallableWork() = 42
+            private suspend fun privateWork() = 42
+        """)
+        myFixture.addFileToProject("README.md", "Call externallyCallableWork() or privateWork().")
+        assertTrue(request(file).declarations.isEmpty())
+        assertTrue(analyze(file).declarations.isEmpty())
+        assertTrue(request(file).declarations.isEmpty())
+    }
+
+    fun testUnusedFunctionRetainsUnknownCallSiteEffects() {
+        val file = source("""
+            import kotlinx.coroutines.delay
+            suspend fun externallyCallableWork() { delay(1) }
+        """)
+        val result = analyze(file)
+        assertTrue(result.declarations.isEmpty())
+        val offset = file.text.indexOf("delay(1)") + "delay(1)".length
+        val dispatchers = result.calls.getValue(offset).summary.dispatchers
+        assertTrue(dispatchers.hasUnknown)
+        assertTrue(dispatchers.known.isEmpty())
+    }
+
+    fun testCallableReferenceAloneDoesNotCreateDeclarationBadge() {
+        val file = source("""
+            private suspend fun load() = 42
+            val callback: suspend () -> Int = ::load
+        """)
+        assertTrue(analyze(file).declarations.isEmpty())
+    }
+
+    fun testActualCallWithUnknownContextCreatesDeclarationBadge() {
+        val file = source("""
+            private suspend fun load() = 42
+            suspend fun entry() = load()
+        """)
+        val result = analyze(file)
+        val offset = PsiTreeUtil.findChildrenOfType(file, KtNamedFunction::class.java)
+            .single { it.name == "load" }.textRange.startOffset
+        assertEquals(setOf(offset), result.declarations.keys)
+        assertTrue(result.declarations.getValue(offset).summary.dispatchers.hasUnknown)
+        assertTrue(result.declarations.getValue(offset).summary.dispatchers.known.isEmpty())
+    }
+
+    fun testUnresolvedCodeCallKeepsPotentialDeclarationUncertain() {
+        val file = source("""
+            private suspend fun load(value: Int) = value
+            suspend fun entry() = load(missingArgument)
+        """)
+        val result = analyze(file)
+        assertEquals(1, result.declarations.size)
+        assertTrue(result.declarations.values.single().summary.dispatchers.hasUnknown)
+    }
+
+    fun testUnchangedFileRetainsOnlyEstablishedGrayEvidenceUntilRefresh() {
+        val file = source("suspend fun load() = 42")
+        val caller = myFixture.addFileToProject("Caller.kt", "suspend fun entry() = load()") as KtFile
+        assertEquals(1, analyze(file).declarations.size)
+        replace(caller, "suspend fun entry() = 42")
+
+        val pending = request(file)
+        assertEquals(1, pending.declarations.size)
+        val badge = pending.declarations.values.single()
+        assertTrue(badge.summary.dispatchers.hasUnknown)
+        assertTrue(badge.summary.dispatchers.known.isEmpty())
+        assertTrue(badge.tooltip.contains("Run Analyze project"))
+        assertTrue(analyze(file).declarations.isEmpty())
+    }
+
+    fun testEditedFileOmitsPreviousPositionsUntilCallEvidenceIsCurrent() {
+        val file = source("private suspend fun load() = 42\nsuspend fun entry() = load()")
+        assertEquals(1, analyze(file).declarations.size)
+        replace(file, "private suspend fun load() = 42")
+        val pending = request(file)
+        assertTrue(pending.declarations.isEmpty())
+        assertTrue(pending.calls.isEmpty())
+        assertTrue(analyze(file).declarations.isEmpty())
+    }
+
+    fun testRecreatedFileAtSameUrlCannotReusePreviousGrayPositions() {
+        val original = source("private suspend fun load() = 42\nsuspend fun entry() = load()")
+        val originalUrl = original.virtualFile.url
+        val previous = analyze(original)
+        assertEquals(1, previous.declarations.size)
+        assertFalse(previous.calls.isEmpty())
+        WriteCommandAction.runWriteCommandAction(project) { original.delete() }
+        val replacement = source("private suspend fun replacement() = 42")
+        assertEquals(originalUrl, replacement.virtualFile.url)
+        val pending = request(replacement)
+        assertTrue(pending.declarations.isEmpty())
+        assertTrue(pending.calls.isEmpty())
+        assertTrue(analyze(replacement).declarations.isEmpty())
+    }
+
+    private fun source(text: String) = myFixture.addFileToProject("Evidence.kt", text.trimIndent()) as KtFile
+
+    private fun replace(file: KtFile, text: String) {
+        WriteCommandAction.runWriteCommandAction(project) {
+            PsiDocumentManager.getInstance(project).getDocument(file)!!.setText(text)
+            PsiDocumentManager.getInstance(project).commitAllDocuments()
+        }
+    }
+
+    private fun request(file: KtFile) = ReadAction.compute<FileAnalysis, RuntimeException> {
+        project.service<DispatcherAnalysisService>().requestAnalysis(file)
+    }
+
+    private fun analyze(file: KtFile) = PlatformTestUtil.waitForFuture(
+        ApplicationManager.getApplication().executeOnPooledThread<FileAnalysis> {
+            ReadAction.compute<FileAnalysis, RuntimeException> {
+                project.service<DispatcherAnalysisService>().analyze(file)
+            }
+        },
+    )
+}

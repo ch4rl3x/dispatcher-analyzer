@@ -16,6 +16,7 @@ data class BadgeSegment(
 class EffectSummary(
     val dispatchers: DispatcherSet,
     pathRelations: Set<PathRelation> = emptySet(),
+    val setsDispatcher: Boolean = false,
 ) {
     val pathRelations: Set<PathRelation> = java.util.Collections.unmodifiableSet(
         LinkedHashSet(pathRelations),
@@ -24,11 +25,13 @@ class EffectSummary(
     fun join(other: EffectSummary): EffectSummary = EffectSummary(
         dispatchers.join(other.dispatchers),
         pathRelations + other.pathRelations,
+        setsDispatcher || other.setsDispatcher,
     )
 
     fun substitute(inheritedContexts: DispatcherSet): EffectSummary = EffectSummary(
         dispatchers.substitute(inheritedContexts),
         pathRelations,
+        setsDispatcher,
     )
 
     /** Known dispatchers are partial only when another distinct known identity is proven. */
@@ -49,11 +52,13 @@ class EffectSummary(
     }
 
     override fun equals(other: Any?): Boolean =
-        other is EffectSummary && dispatchers == other.dispatchers && pathRelations == other.pathRelations
+        other is EffectSummary && dispatchers == other.dispatchers && pathRelations == other.pathRelations &&
+            setsDispatcher == other.setsDispatcher
 
-    override fun hashCode(): Int = 31 * dispatchers.hashCode() + pathRelations.hashCode()
+    override fun hashCode(): Int = 31 * (31 * dispatchers.hashCode() + pathRelations.hashCode()) + setsDispatcher.hashCode()
 
-    override fun toString(): String = "EffectSummary(dispatchers=$dispatchers, pathRelations=$pathRelations)"
+    override fun toString(): String =
+        "EffectSummary(dispatchers=$dispatchers, pathRelations=$pathRelations, setsDispatcher=$setsDispatcher)"
 
     companion object {
         val EMPTY = EffectSummary(DispatcherSet.EMPTY)

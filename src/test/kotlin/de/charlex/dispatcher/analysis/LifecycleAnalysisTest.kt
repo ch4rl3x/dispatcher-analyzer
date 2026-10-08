@@ -53,8 +53,8 @@ class LifecycleAnalysisTest : BasePlatformTestCase() {
         val indexing = DumbModeTestUtils.startEternalDumbModeTask(project)
         try {
             val unavailable = read { analysis.analyze(file) }
-            assertTrue(unavailable.declarations.values.all { it.summary.dispatchers.hasUnknown })
-            assertTrue(unavailable.declarations.values.all { it.tooltip.contains("indexing") })
+            assertTrue(unavailable.declarations.isEmpty())
+            assertTrue(unavailable.calls.isEmpty())
             read { analysis.requestAnalysis(file) }
             dispatchPastDebounce()
             assertFalse(analysis.hasCurrentAnalysis(file))
@@ -148,6 +148,9 @@ class LifecycleAnalysisTest : BasePlatformTestCase() {
 
     private fun dispatchPastDebounce() {
         val deadline = System.nanoTime() + 1_100_000_000
-        PlatformTestUtil.waitWithEventsDispatching("Past automatic debounce", { System.nanoTime() >= deadline }, 5)
+        while (System.nanoTime() < deadline) {
+            PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+            Thread.sleep(10)
+        }
     }
 }

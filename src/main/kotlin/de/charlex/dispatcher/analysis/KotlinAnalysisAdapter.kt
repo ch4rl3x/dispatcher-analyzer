@@ -70,7 +70,8 @@ internal class KotlinAnalysisAdapter {
             val symbol = call.signature.symbol
             val named = symbol as? KaNamedFunctionSymbol
             ResolvedCall(
-                identity = symbol.callableId?.asSingleFqName()?.asString(),
+                identity = symbol.callableId?.asSingleFqName()?.asString()
+                    ?: (symbol as? KaConstructorSymbol)?.containingClassId?.asSingleFqName()?.asString(),
                 target = symbol.psi as? KtNamedFunction,
                 suspend = named?.isSuspend == true,
                 expect = symbol.isExpect,

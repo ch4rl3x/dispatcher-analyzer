@@ -203,11 +203,11 @@ class DispatcherAnalysisIntegrationTest : BasePlatformTestCase() {
     }
 
     fun testDeepCallGraphConvergesBeyondFormerRoundLimit() {
-        val functions = (0 until 70).joinToString("\n") { "private suspend fun load$it() = load${it + 1}()" }
+        val functions = (0 until 70).joinToString("\n") { "private suspend fun load$it(): Int = load${it + 1}()" }
         val file = source("""
             import kotlinx.coroutines.*
             $functions
-            private suspend fun load70() = withContext(Dispatchers.IO) { 42 }
+            private suspend fun load70(): Int = withContext(Dispatchers.IO) { 42 }
             fun start() { CoroutineScope(Dispatchers.Main).launch { load0() } }
         """)
         val badge = call(file, analyze(file), "load0()", true)

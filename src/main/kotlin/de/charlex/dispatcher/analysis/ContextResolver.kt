@@ -34,10 +34,10 @@ internal class ContextResolver(private val api: KotlinAnalysisAdapter) {
             }
             val value = api.value(expression)
             when (value?.identity) {
-                "kotlinx.coroutines.Dispatchers.Main" -> return known(Dispatcher.Main)
-                "kotlinx.coroutines.Dispatchers.IO" -> return known(Dispatcher.IO)
-                "kotlinx.coroutines.Dispatchers.Default" -> return known(Dispatcher.Default)
-                "kotlinx.coroutines.Dispatchers.Unconfined" -> return known(Dispatcher.Unconfined)
+                "kotlinx.coroutines.Dispatchers.Main" -> return known(Dispatcher.Main, expression)
+                "kotlinx.coroutines.Dispatchers.IO" -> return known(Dispatcher.IO, expression)
+                "kotlinx.coroutines.Dispatchers.Default" -> return known(Dispatcher.Default, expression)
+                "kotlinx.coroutines.Dispatchers.Unconfined" -> return known(Dispatcher.Unconfined, expression)
                 "kotlinx.coroutines.NonCancellable", "kotlin.coroutines.EmptyCoroutineContext" -> return KEEP
                 "kotlinx.coroutines.MainCoroutineDispatcher.immediate" -> {
                     val receiver = (expression as? KtQualifiedExpression)?.receiverExpression
@@ -45,7 +45,7 @@ internal class ContextResolver(private val api: KotlinAnalysisAdapter) {
                         ?: uncertain("Unresolved immediate dispatcher receiver")
                 }
             }
-            value?.objectIdentity?.let { return known(Dispatcher.Custom(it, "Custom(${it.substringAfterLast('.')})")) }
+            value?.objectIdentity?.let { return known(Dispatcher.Custom(it, "Custom(${it.substringAfterLast('.')})"), expression) }
             value?.property?.let { property ->
                 if (value.virtual) return uncertain("Dispatcher property can be overridden")
                 if (!property.isVar && property.getter == null && !property.hasDelegate()) {
@@ -58,7 +58,7 @@ internal class ContextResolver(private val api: KotlinAnalysisAdapter) {
             if (call != null) {
                 val resolved = api.call(call)
                 when (resolved?.identity) {
-                    "kotlinx.coroutines.CoroutineName.CoroutineName", "kotlinx.coroutines.CoroutineName",
+                    "kotlinx.coroutines.CoroutineName",
                     "kotlinx.coroutines.Job", "kotlinx.coroutines.SupervisorJob" -> return KEEP
                     "kotlinx.coroutines.CoroutineDispatcher.limitedParallelism" -> {
                         return context(resolved.receiver, active)
@@ -68,9 +68,9 @@ internal class ContextResolver(private val api: KotlinAnalysisAdapter) {
                     val identity = "${call.containingFile.virtualFile?.url}:${call.textOffset}"
                     val receiver = resolved?.receiver?.let(api::value)
                     RoomDispatcherSummary.dispatcher(resolved?.identity, receiver?.identity,
-                        receiver?.libraryLocation, identity)?.let { return known(it) }
+                        receiver?.libraryLocation, identity)?.let { return known(it, expression) }
                     val label = resolved?.returnClass?.substringAfterLast('.') ?: "Dispatcher"
-                    return known(Dispatcher.Custom(identity, "Custom($label)"))
+                    return known(Dispatcher.Custom(identity, "Custom($label)"), expression)
                 }
             }
             return uncertain("Dispatcher or context value could not be resolved")
@@ -98,7 +98,7 @@ internal class ContextResolver(private val api: KotlinAnalysisAdapter) {
             val call = asCall(expression) ?: return uncertain("Scope provenance is unknown")
             val resolved = api.call(call) ?: return uncertain("Scope creation could not be resolved")
             return when (resolved.identity) {
-                "kotlinx.coroutines.MainScope" -> known(Dispatcher.Main)
+                "kotlinx.coroutines.MainScope" -> known(Dispatcher.Main, expression)
                 "kotlinx.coroutines.CoroutineScope" -> context(resolved.arguments["context"], active)
                 else -> uncertain("Scope may supply a custom dispatcher")
             }
@@ -129,7 +129,8 @@ internal class ContextResolver(private val api: KotlinAnalysisAdapter) {
             else -> null
         }
 
-        fun known(dispatcher: Dispatcher) = ContextValue(DispatcherSet.of(dispatcher), replaces = true)
+        private fun known(dispatcher: Dispatcher, expression: KtExpression) =
+            ContextValue(SourceOrigins.dispatchers(dispatcher, expression), replaces = true)
         fun uncertain(reason: String) = ContextValue(DispatcherSet.unknown(reason), replaces = false)
     }
 }

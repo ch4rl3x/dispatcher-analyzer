@@ -142,9 +142,11 @@ internal class SourceGraph(
             else walk(argument, context, scope, owner)
         }
         if (id == "kotlinx.coroutines.withContext") {
-            val switched = contexts.context(args["context"]).applyTo(context)
-            val effect = if (block == null) unknown("withContext body is not an immediate lambda")
+            val selected = contexts.context(args["context"])
+            val switched = selected.applyTo(context)
+            val body = if (block == null) unknown("withContext body is not an immediate lambda")
                 else ensureExecution(walk(block.bodyExpression, switched, switched, owner), switched)
+            val effect = contextSelection(body, selected)
             record(expression, owner, null, context, effect)
             return group(argumentEffects + effect)
         }
@@ -159,7 +161,7 @@ internal class SourceGraph(
                 else contexts.scope(resolved?.receiver)
             val explicit = contexts.context(args["context"])
             val merged = explicit.applyTo(base.dispatchers)
-            var childContext = if (merged.isEmpty) DispatcherSet.of(Dispatcher.Default) else merged
+            var childContext = if (merged.isEmpty) SourceOrigins.dispatchers(Dispatcher.Default, expression) else merged
             val start = args["start"]
             if (start != null && api.value(start)?.identity != "kotlinx.coroutines.CoroutineStart.DEFAULT") {
                 childContext = childContext.join(DispatcherSet.unknown("Unsupported coroutine start mode"))
@@ -168,10 +170,12 @@ internal class SourceGraph(
             return group(argumentEffects + work(context))
         }
         if (id == "kotlinx.coroutines.runBlocking") {
-            val blocked = contexts.context(args["context"])
+            val selected = contexts.context(args["context"])
+            val blocked = selected
                 .applyTo(DispatcherSet.unknown("runBlocking event-loop context is not modeled"))
-            val effect = if (block == null) unknown("runBlocking body is not an immediate lambda")
-                else walk(block.bodyExpression, blocked, blocked, owner)
+            val body = if (block == null) unknown("runBlocking body is not an immediate lambda")
+                else ensureExecution(walk(block.bodyExpression, blocked, blocked, owner), blocked)
+            val effect = contextSelection(body, selected)
             return group(argumentEffects + effect)
         }
 
@@ -253,10 +257,13 @@ internal class SourceGraph(
         private fun work(context: DispatcherSet) = Effect.Work(EffectSummary(context))
         private fun unknown(reason: String) = work(DispatcherSet.unknown(reason))
         private fun group(effects: List<Effect>): Effect = Effect.Group(effects)
+        private fun contextSelection(effect: Effect, selected: ContextValue): Effect =
+            if (selected.replaces || selected.dispatchers.hasUnknown) Effect.ContextSelection(effect) else effect
         private fun ensureExecution(effect: Effect, context: DispatcherSet): Effect =
             if (isEmpty(effect)) work(context) else effect
         private fun isEmpty(effect: Effect): Boolean = when (effect) {
             is Effect.Work -> effect.summary.dispatchers.isEmpty
+            is Effect.ContextSelection -> false
             is Effect.Invoke -> false
             is Effect.Group -> effect.effects.all(::isEmpty)
         }

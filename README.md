@@ -2,13 +2,14 @@
 
 Android Studio plugin for understanding dispatcher usage in Kotlin `suspend` functions.
 
-- **Above declarations:** editor-only badges such as `Dispatcher Main` or `Dispatcher Main | IO`, inferred from incoming calls.
+- **Above declarations:** editor-only badges such as `called within Dispatcher Main` or `called within Dispatcher Main | IO`, inferred from incoming calls. Functions without project code calls receive no declaration badge; documentation references do not count.
 - **At call sites:** badges describing the callee's execution, including internal `withContext` switches and `(partial)` coverage.
-- **Settings:** call-site badges are off by default and can be enabled in Dispatcher Analyzer settings. Declaration badges have no plugin-specific off switch. Suspend expect declarations and calls are excluded.
+- **Settings:** choose all call-site badges, only calls that set a dispatcher, or no call-site badges (default). Declaration badges have no plugin-specific off switch. Suspend expect declarations and calls are excluded.
 - **Unknown:** unresolved contexts remain visible, including alongside known dispatchers.
 - **Colors:** Main red, Default green, IO yellow, Unknown/analysis problems gray, and other identified dispatchers (including custom/library dispatchers) purple. Mixed badges color each dispatcher separately; text stays readable in light and dark themes.
+- **Navigation:** click a colored dispatcher name to open the source that selected it. Each name uses its own origins; multiple origins for the same dispatcher open a chooser. Unknown has no navigation target.
 - **Presentation:** no source edits or added document lines; above-code hints occupy editor space.
-- **Responsiveness:** background analysis starts after a 750 ms typing pause. New edits cancel superseded work; pending results are gray. Project size is not capped by file or function counts.
+- **Responsiveness:** background analysis starts after a 750 ms typing pause. New edits cancel superseded work; pending results are gray or omitted until call evidence is available. Project size is not capped by file or function counts.
 
 Badges describe static analysis, not which dispatchers are safe or permitted. A `suspend` modifier alone does not choose a dispatcher.
 
@@ -16,12 +17,12 @@ Badges describe static analysis, not which dispatchers are safe or permitted. A 
 
 The alpha targets Android Studio Rabbit 1 (`2026.2.1.8`, platform 262). Build with JDK 25 and `./gradlew buildPlugin`, then select the archive in `build/distributions/` through Settings > Plugins > Install Plugin from Disk.
 
-Under Settings > Tools > Dispatcher Analyzer:
+Open Settings > Tools > Dispatcher Analyzer, or use **Settings…** in the Dispatcher Analyzer side panel.
 
 - Automatic analysis is on by default and runs after typing pauses. Turn it off to analyze manually with **Analyze project** in the **Dispatcher Analyzer** side panel (View > Tool Windows).
-- Call-site badges are off by default and can be enabled independently.
+- **Call-site badges:** choose **All calls**, **Only calls that set a dispatcher**, or **Do not show** (default). The filtered mode includes synchronous dispatcher selection inside the callee, including supported nested calls; merely inheriting a caller's dispatcher does not qualify.
 
-After source changes, outdated results become gray until analysis finishes. In manual mode, they remain pending until you press **Analyze project** again. Declaration badges have no plugin-specific off switch; IDE-wide inlay controls still apply.
+After source changes, outdated results become gray or disappear until analysis finishes. In manual mode, they remain pending until you press **Analyze project** again. Declaration badges have no plugin-specific off switch; IDE-wide inlay controls still apply.
 
 Open the [demo project](samples/demo) in a sandbox to explore Main, IO, Default, custom, partial, and unknown results.
 

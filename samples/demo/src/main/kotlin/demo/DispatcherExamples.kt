@@ -39,6 +39,7 @@ private suspend fun databaseWork() = withContext(databaseDispatcher) {
 
 fun launchExamples(scope: CoroutineScope, injected: CoroutineDispatcher) {
     scope.launch(Dispatchers.Main) {
+        externallyCallableWork()
         ioWrapper()
         mixedWorkload()
         injectedDispatcherWork(injected)

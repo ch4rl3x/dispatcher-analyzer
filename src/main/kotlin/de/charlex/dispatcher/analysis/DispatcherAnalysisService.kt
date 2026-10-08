@@ -25,6 +25,7 @@ import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
 import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.vfs.VirtualFileWithId
 import com.intellij.openapi.util.Disposer
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.search.FilenameIndex
@@ -103,12 +104,10 @@ class DispatcherAnalysisService(private val project: Project, private val corout
                 schedule(latestRequest, requestedStamp, debounce = true)
             }
         }
-        val old = cached
-        val callOffsets = old?.takeIf { it.fileStamps[path] == file.modificationStamp }?.files?.get(path)?.calls?.keys.orEmpty()
         val reason = if (service<DispatcherSettings>().automaticAnalysis || pendingJob?.isActive == true) {
             "Dispatcher analysis is pending"
         } else "Run Analyze project to refresh dispatcher analysis"
-        return unavailable(file, reason, callOffsets)
+        return unavailable(file, reason)
     }
 
     fun runAnalysisNow() {
@@ -140,8 +139,9 @@ class DispatcherAnalysisService(private val project: Project, private val corout
             if (service<DispatcherSettings>().automaticAnalysis && latestRequest != null) {
                 schedule(latestRequest, stamp(), debounce = true)
             } else {
-                updateStatus(if (cached?.stamp == stamp()) "Up to date" else if (cached == null) "Idle" else "Out of date", requestGeneration)
+                currentStatus = if (cached?.stamp == stamp()) "Up to date" else if (cached == null) "Idle" else "Out of date"
             }
+            publishUpdate(requestGeneration)
         }
     }
 
@@ -190,6 +190,10 @@ class DispatcherAnalysisService(private val project: Project, private val corout
     private fun updateStatus(status: String, generation: Long) {
         if (generation != requestGeneration || currentStatus == status) return
         currentStatus = status
+        publishUpdate(generation)
+    }
+
+    private fun publishUpdate(generation: Long) {
         coroutineScope.launch(Dispatchers.EDT) {
             if (!project.isDisposed && generation == requestGeneration) {
                 project.messageBus.syncPublisher(DispatcherAnalysisListener.TOPIC).analysisUpdated()
@@ -199,6 +203,9 @@ class DispatcherAnalysisService(private val project: Project, private val corout
 
     internal fun hasCurrentAnalysis(file: KtFile): Boolean =
         !project.isDisposed && cached?.let { it.stamp == stamp() && (file.virtualFile?.url ?: file.name) in it.files } == true
+
+    internal fun isCurrentAnalysis(fileUrl: String, result: FileAnalysis): Boolean =
+        !project.isDisposed && cached?.let { it.stamp == stamp() && it.files[fileUrl] === result } == true
 
     fun analyze(file: KtFile): FileAnalysis {
         if (project.isDisposed || !file.isValid) return FileAnalysis()
@@ -229,7 +236,7 @@ class DispatcherAnalysisService(private val project: Project, private val corout
         LOG.debug("Dispatcher analysis unavailable", failure)
         val path = file.virtualFile?.url ?: file.name
         Snapshot(stamp, mapOf(path to unavailable(file, "Kotlin analysis is unavailable for this file")),
-            mapOf(path to file.modificationStamp))
+            mapOf(path to fileStamp(file)))
     }
 
     private fun stamp() = Stamp(
@@ -289,7 +296,11 @@ class DispatcherAnalysisService(private val project: Project, private val corout
         }
         summaries = summaries.mapValues { (_, summary) ->
             when {
-                summary.dispatchers.isEmpty -> unknown("No executable dispatcher evidence was found")
+                summary.dispatchers.isEmpty -> EffectSummary(
+                    DispatcherSet.unknown("No executable dispatcher evidence was found"),
+                    summary.pathRelations,
+                    summary.setsDispatcher,
+                )
                 else -> summary
             }
         }
@@ -344,9 +355,16 @@ class DispatcherAnalysisService(private val project: Project, private val corout
             incoming = next
         }
 
+        val calledTargets = graph.calls.mapNotNull { call ->
+            ProgressManager.checkCanceled()
+            call.target
+        }.toSet()
+        val calledBodies = bodies.filter { body ->
+            body.key in calledTargets || body.declaration.name in graph.unresolvedNames
+        }
         val result = files.associate { file ->
             val path = file.virtualFile?.url ?: file.name
-            val declarations = bodies.filter { it.key.file == path }.associate { body ->
+            val declarations = calledBodies.filter { it.key.file == path }.associate { body ->
                 val summary = EffectSummary(incoming.getValue(body.key))
                 body.key.offset to BadgeResult(summary, tooltip(summary, declaration = true))
             }
@@ -361,41 +379,53 @@ class DispatcherAnalysisService(private val project: Project, private val corout
             }
             path to FileAnalysis(immutable(declarations), immutable(calls))
         }
-        return Snapshot(stamp, immutable(result), immutable(files.associate { (it.virtualFile?.url ?: it.name) to it.modificationStamp }))
+        return Snapshot(stamp, immutable(result), immutable(files.associate { (it.virtualFile?.url ?: it.name) to fileStamp(it) }))
     }
 
     private fun evaluate(effect: Effect, summaries: Map<FunctionKey, EffectSummary>): EffectSummary {
         ProgressManager.checkCanceled()
         return when (effect) {
             is Effect.Work -> effect.summary
+            is Effect.ContextSelection -> evaluate(effect.effect, summaries).let {
+                EffectSummary(it.dispatchers, it.pathRelations, setsDispatcher = true)
+            }
             is Effect.Invoke -> summaries[effect.target]?.let { summary ->
                 if (summary.dispatchers.isEmpty) summary else summary.substitute(effect.context)
             } ?: unknown("Callee was outside the analyzed graph")
             is Effect.Group -> {
-                val children = effect.effects.map { evaluate(it, summaries) }.filterNot { it.dispatchers.isEmpty }
+                val children = effect.effects.map { evaluate(it, summaries) }
+                    .filterNot { it.dispatchers.isEmpty && !it.setsDispatcher }
                 val joined = children.fold(EffectSummary.EMPTY, EffectSummary::join)
                 if (joined.dispatchers.known.size > 1 && (effect.branch || children.size > 1)) EffectSummary(joined.dispatchers,
-                    joined.pathRelations + if (effect.branch) PathRelation.BRANCH_ALTERNATIVES else PathRelation.CONTEXT_SWITCH)
+                    joined.pathRelations + if (effect.branch) PathRelation.BRANCH_ALTERNATIVES else PathRelation.CONTEXT_SWITCH,
+                    joined.setsDispatcher)
                 else joined
             }
         }
     }
 
-    private fun unavailable(file: KtFile, reason: String, callOffsets: Set<Int> = emptySet()): FileAnalysis {
+    private fun unavailable(file: KtFile, reason: String): FileAnalysis {
+        val path = file.virtualFile?.url ?: file.name
+        val previous = cached?.takeIf { it.fileStamps[path] == fileStamp(file) }?.files?.get(path)
+            ?: return FileAnalysis()
+        val document = file.virtualFile?.let { FileDocumentManager.getInstance().getCachedDocument(it) }
+        if (document != null && !PsiDocumentManager.getInstance(project).isCommitted(document)) return FileAnalysis()
         val badge = BadgeResult(unknown(reason), reason)
-        val declarations = mutableMapOf<Int, BadgeResult>()
-        file.accept(object : PsiRecursiveElementWalkingVisitor() {
-            override fun visitElement(element: PsiElement) {
-                ProgressManager.checkCanceled()
-                if (element is KtNamedFunction && SourceGraph.isSupported(element)) declarations[element.textRange.startOffset] = badge
-                super.visitElement(element)
-            }
-        })
-        return FileAnalysis(immutable(declarations), immutable(callOffsets.associateWith { badge }))
+        return FileAnalysis(
+            immutable(previous.declarations.keys.associateWith { badge }),
+            immutable(previous.calls.keys.associateWith { badge }),
+        )
     }
 
     private data class Stamp(val source: Long, val roots: Long, val documents: Long)
-    private data class Snapshot(val stamp: Stamp, val files: Map<String, FileAnalysis>, val fileStamps: Map<String, Long>)
+    private data class FileStamp(val psi: Long, val vfs: Long?, val fileId: Int?)
+    private data class Snapshot(val stamp: Stamp, val files: Map<String, FileAnalysis>, val fileStamps: Map<String, FileStamp>)
+
+    private fun fileStamp(file: KtFile) = FileStamp(
+        file.modificationStamp,
+        file.virtualFile?.modificationStamp,
+        (file.virtualFile as? VirtualFileWithId)?.id,
+    )
 
     companion object {
         private val LOG = Logger.getInstance(DispatcherAnalysisService::class.java)
@@ -403,7 +433,7 @@ class DispatcherAnalysisService(private val project: Project, private val corout
         private fun unknown(reason: String) = EffectSummary(DispatcherSet.unknown(reason))
         private fun substitute(context: DispatcherSet, incoming: DispatcherSet): DispatcherSet {
             if (Dispatcher.Inherited !in context.known) return context
-            return DispatcherSet(context.known - Dispatcher.Inherited, context.unknownReasons).join(incoming)
+            return DispatcherSet(context.known - Dispatcher.Inherited, context.unknownReasons, context.origins).join(incoming)
         }
         private fun <K, V> immutable(map: Map<K, V>): Map<K, V> = java.util.Collections.unmodifiableMap(LinkedHashMap(map))
         private fun tooltip(summary: EffectSummary, declaration: Boolean): String = buildString {

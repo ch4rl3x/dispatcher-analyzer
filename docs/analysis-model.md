@@ -2,19 +2,28 @@
 
 ## Two badge meanings
 
-**Declaration:** union of possible incoming dispatcher contexts discovered in the analyzed project. This describes callers, not a thread-safety contract. Public/external entry points, unresolved callers, and incomplete analysis add `Unknown`; a closed private call graph can have only known entries. No discovered callers does not prove a dispatcher.
+**Declaration:** union of possible incoming dispatcher contexts discovered in the analyzed project. Show a badge only when project code contains a call to the function. Public visibility or a README reference alone is insufficient; uncalled functions have no declaration badge. When calls exist, public/external entry points, unresolved callers, and incomplete analysis add `Unknown`; a closed private call graph can have only known entries. This describes callers, not a thread-safety contract.
 
 **Call site:** possible dispatcher contexts for executable work in the resolved callee, substituting this call's context into inherited effects. A known `withContext` can therefore produce an `IO` badge even when the incoming context is unknown. Ordinary execution after the call retains the caller's context.
 
-Call-site badges are disabled by default and can be enabled in plugin settings. Declaration badges are always provided while the plugin and IDE inlays are active, with no plugin-specific off switch. IDE-wide inlay controls still apply. Suspend expect declarations and their calls are outside the current scope and receive no badges.
+Calls inside an unused function still receive call-site badges when enabled. For example, an uncalled `externallyCallableWork` has no declaration badge, while its `delay(1)` call displays `Dispatcher Unknown` because the inherited dispatcher is unresolved. A callable reference alone does not create a declaration badge; when actual calls also exist, escaping references can add uncertainty.
 
-Analysis mode is a separate persisted setting. Automatic mode (default) starts background analysis after a 750 ms typing pause. Manual mode starts only through Analyze project in the Dispatcher Analyzer side panel. Edits cancel superseded work and invalidate results in both modes; manual mode never restarts work implicitly. The side panel reports the analysis status. Outdated declaration results are gray Unknown, with an explanation to run analysis; outdated call positions are removed when their source changes.
+Declaration badges begin with `called within Dispatcher `; call-site badges begin with `Dispatcher `. The prefix is neutral; each dispatcher retains its own color.
+
+Only a colored dispatcher name is clickable. It navigates to the project expression that selected that dispatcher, such as `Dispatchers.Main` in a builder context, a `withContext` argument, an immutable alias initializer, or an identified dispatcher factory. A proven implicit default points to its coroutine builder. Prefixes, separators, `(partial)`, and Unknown have no navigation action. When the same dispatcher has several contributing origins, clicking that name opens a chooser containing only those origins. Declaration origins follow incoming contexts; call-site origins follow execution effects. Context overrides discard replaced origins. Outdated snapshots cannot navigate.
+
+Call-site badges use a persistent enum dropdown: **All calls**, **Only calls that set a dispatcher**, or **Do not show** (default). Existing enabled/disabled preferences migrate to All calls/Do not show. Declaration badges have no plugin-specific off switch but require project call evidence. IDE-wide inlay controls still apply. Suspend expect declarations and their calls are outside the current scope and receive no badges.
+
+The filtered call-site mode uses a separate semantic flag for synchronous dispatcher selection inside the callee. `withContext(IO)` qualifies, as does a supported synchronous callee that performs such a switch; `delay` merely inherits its caller's dispatcher and does not qualify. Explicit unresolved dispatcher values remain visible with Unknown. `NonCancellable` or `CoroutineName` alone does not select a dispatcher, and dispatcher choices confined to asynchronous child bodies do not qualify the parent. This flag is independent of the final dispatcher union and `(partial)` coverage. Pending results cannot establish dispatcher selection and are omitted in filtered mode.
+
+Analysis mode is a separate persisted setting. Automatic mode (default) starts background analysis after a 750 ms typing pause. Manual mode starts only through Analyze project in the Dispatcher Analyzer side panel. Edits cancel superseded work and invalidate results in both modes; manual mode never restarts work implicitly. The side panel reports the analysis status. Outdated results with previously established call evidence are gray Unknown while their file remains unchanged; edited or unanalyzed positions are omitted until a current snapshot is available.
 
 | Situation | Badge |
 | --- | --- |
-| Closed function called from Main and IO | `Dispatcher Main \| IO` above its declaration |
-| No dispatcher evidence | `Dispatcher Unknown` |
-| Known Main caller plus unresolved entry paths | `Dispatcher Main \| Unknown` |
+| Closed function called from Main and IO | `called within Dispatcher Main \| IO` above its declaration |
+| No project code call | No declaration badge |
+| Project call exists but its dispatcher is unresolved | `called within Dispatcher Unknown` |
+| Known Main caller plus unresolved entry paths | `called within Dispatcher Main \| Unknown` |
 | Known IO work plus unresolved work | `Dispatcher IO \| Unknown`; tooltip: coverage unknown |
 | Callee inherits a known Main context | `Dispatcher Main` at the call |
 | Callee's complete workload is inside `withContext(Dispatchers.IO)` | `Dispatcher IO` at the call |
@@ -42,7 +51,7 @@ An identified custom dispatcher can use a label such as `Dispatcher Custom(MyDis
 
 ## Model and transfer rules
 
-- Represent a set of `Main`, `IO`, `Default`, `Unconfined`, and identified `Custom(identity, label)` entries plus an independent unknown flag and provenance. Keep `Inherited` symbolic in function summaries until a call context is supplied. Keep the internal no-evidence state distinct from `Unknown` during fixed-point iteration.
+- Represent a set of `Main`, `IO`, `Default`, `Unconfined`, and identified `Custom(identity, label)` entries plus an independent unknown flag and provenance. Store immutable source origins separately for each concrete dispatcher and merge them through joins and inheritance until both identities and evidence converge. Keep `Inherited` symbolic in function summaries until a call context is supplied. Keep the internal no-evidence state distinct from `Unknown` during fixed-point iteration.
 - Track execution regions/path alternatives and coverage separately from incoming sets. Display order is Main, IO, Default, Unconfined, custom entries sorted by label and identity, Unknown. Fold `Main.immediate` into Main while preserving that detail in explanations; these are dispatcher identities, not physical-thread guarantees. Custom identities must not be merged solely because their labels match.
 - Resolve API identities, aliases, and proven immutable values using the Analysis API. Names such as `IO`, `withContext`, or `viewModelScope` are insufficient evidence.
 - Apply context composition by key: an explicit dispatcher replaces the inherited dispatcher; `CoroutineName` or `NonCancellable` alone does not. Unknown context elements that could override the dispatcher preserve uncertainty.
@@ -58,7 +67,7 @@ Start with Kotlin/JVM project sources, named suspend functions, direct calls, re
 
 The alpha's Room summary covers explicit `database.queryExecutor.asCoroutineDispatcher()` for Room 2.7.2 and 2.8.4 when symbol identity and artifact version are proven. Implicit DAO and transaction dispatchers remain unknown. Standard dispatchers selected explicitly in project source retain their usual identities. Unknown library effects prevent full-coverage claims.
 
-The editor requests analysis without performing it inside an inlay pass. A platform-managed project coroutine waits for a 750 ms typing pause, then analyzes project sources in a cancellable smart read action. New revisions supersede pending or running work. Only a snapshot matching the current source/root revision is published; publication refreshes inlays. Pending or invalidated results are gray and do not reuse stale certainty.
+The editor requests analysis without performing it inside an inlay pass. A platform-managed project coroutine waits for a 750 ms typing pause, then analyzes project sources in a cancellable smart read action. New revisions supersede pending or running work. Only a snapshot matching the current source/root revision is published; publication refreshes inlays. Pending or invalidated results are gray when existing call evidence remains usable, otherwise omitted. They never reuse stale certainty.
 
 There are no arbitrary file, function, node, or fixed-point-round caps. Caches contain immutable results and are invalidated by PSI or root changes. Cancellation and project disposal stop background work. CPU and memory use still depend on project size; asynchronous execution does not imply a wall-clock or memory guarantee.
 

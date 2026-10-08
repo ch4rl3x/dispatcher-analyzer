@@ -1,9 +1,11 @@
 <html>
 <body>
 <p>Shows possible incoming dispatchers above suspend functions and execution
-dispatchers at suspend calls. Hover over a badge for evidence and uncertainty.</p>
-<p>Call badges are off by default. Enable them under Tools &gt; Dispatcher Analyzer.
-Declaration badges remain enabled while IDE inlay hints are enabled.</p>
+dispatchers at suspend calls. Hover for uncertainty details; click a colored
+dispatcher name to navigate to its source evidence.</p>
+<p>Under Tools &gt; Dispatcher Analyzer, show all call badges, only calls that set
+a dispatcher, or none (default). Declaration badges require a project code call
+and remain enabled while IDE inlay hints are enabled.</p>
 <p>Main is red, Default green, IO yellow, identified custom dispatchers purple,
 and Unknown gray. A partial entry means some known work can run elsewhere.
 Badges are editor hints and never modify source code.</p>

@@ -13,24 +13,37 @@ import de.charlex.dispatcher.analysis.DispatcherAnalysisService
 class DispatcherSettings : PersistentStateComponent<DispatcherHintSettings> {
     @Volatile private var stored = DispatcherHintSettings()
 
+    val callSiteMode: CallSiteBadgeMode
+        get() = stored.resolvedCallSiteMode()
+
     val showCalls: Boolean
-        get() = stored.showCalls
+        get() = callSiteMode != CallSiteBadgeMode.NONE
 
     val automaticAnalysis: Boolean
         get() = stored.automaticAnalysis
 
-    override fun getState(): DispatcherHintSettings = stored.copy()
+    override fun getState(): DispatcherHintSettings =
+        stored.copy(showCalls = showCalls, callSiteMode = callSiteMode)
 
     override fun loadState(state: DispatcherHintSettings) {
-        stored = state.copy()
+        val mode = state.resolvedCallSiteMode()
+        stored = state.copy(showCalls = mode != CallSiteBadgeMode.NONE, callSiteMode = mode)
     }
 
     fun updateCalls(showCalls: Boolean) {
-        update(showCalls, stored.automaticAnalysis)
+        updateCalls(if (showCalls) CallSiteBadgeMode.ALL else CallSiteBadgeMode.NONE)
+    }
+
+    fun updateCalls(mode: CallSiteBadgeMode) {
+        update(mode, stored.automaticAnalysis)
     }
 
     fun update(showCalls: Boolean, automaticAnalysis: Boolean) {
-        val next = DispatcherHintSettings(showCalls, automaticAnalysis)
+        update(if (showCalls) CallSiteBadgeMode.ALL else CallSiteBadgeMode.NONE, automaticAnalysis)
+    }
+
+    fun update(callSiteMode: CallSiteBadgeMode, automaticAnalysis: Boolean) {
+        val next = DispatcherHintSettings(callSiteMode != CallSiteBadgeMode.NONE, automaticAnalysis, callSiteMode)
         if (stored == next) return
         val modeChanged = stored.automaticAnalysis != automaticAnalysis
         stored = next
