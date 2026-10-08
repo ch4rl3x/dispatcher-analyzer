@@ -6,6 +6,10 @@
 
 **Call site:** possible dispatcher contexts for executable work in the resolved callee, substituting this call's context into inherited effects. A known `withContext` can therefore produce an `IO` badge even when the incoming context is unknown. Ordinary execution after the call retains the caller's context.
 
+Call-site badges are disabled by default and can be enabled in plugin settings. Declaration badges are always provided while the plugin and IDE inlays are active, with no plugin-specific off switch. IDE-wide inlay controls still apply. Suspend expect declarations and their calls are outside the current scope and receive no badges.
+
+Analysis mode is a separate persisted setting. Automatic mode (default) starts background analysis after a 750 ms typing pause. Manual mode starts only through Analyze project in the Dispatcher Analyzer side panel. Edits cancel superseded work and invalidate results in both modes; manual mode never restarts work implicitly. The side panel reports the analysis status. Outdated declaration results are gray Unknown, with an explanation to run analysis; outdated call positions are removed when their source changes.
+
 | Situation | Badge |
 | --- | --- |
 | Closed function called from Main and IO | `Dispatcher Main \| IO` above its declaration |
@@ -34,7 +38,7 @@ Apply the same palette at declarations and calls. Color each dispatcher entry in
 
 Represent analysis failures with gray `Unknown` and an explanatory tooltip. Keep independently valid known entries colored; if a failure invalidates the whole result, replace stale entries with gray `Unknown`.
 
-An identified custom dispatcher can use a label such as `Dispatcher Custom(MyDispatcher)` or `Dispatcher Room` when a verified library summary establishes that identity. A Room API name alone is insufficient. Proven standard dispatchers retain their standard label/color even when supplied through a library; unresolved custom values stay gray. General user-configurable mappings remain later work.
+An identified custom dispatcher can use a label such as `Dispatcher Custom(MyDispatcher)` or `Dispatcher Room(query executor)` when a verified library summary establishes that identity. A Room API name alone is insufficient. Proven standard dispatchers retain their standard label/color even when supplied through a library; unresolved custom values stay gray. General user-configurable mappings remain later work.
 
 ## Model and transfer rules
 
@@ -43,7 +47,7 @@ An identified custom dispatcher can use a label such as `Dispatcher Custom(MyDis
 - Resolve API identities, aliases, and proven immutable values using the Analysis API. Names such as `IO`, `withContext`, or `viewModelScope` are insufficient evidence.
 - Apply context composition by key: an explicit dispatcher replaces the inherited dispatcher; `CoroutineName` or `NonCancellable` alone does not. Unknown context elements that could override the dispatcher preserve uncertainty.
 - Enter `withContext` with its merged context and restore the previous context after the block, including subsequent statements and exception paths.
-- Model direct suspend calls and bounded interprocedural summaries. Join branches and recursion to a fixed point; add uncertainty when resolution or the analysis budget is incomplete.
+- Model direct suspend calls and interprocedural summaries. Join branches and recursion until the monotone analysis reaches a fixed point; add uncertainty when resolution is incomplete. Detect alias cycles explicitly rather than cutting off an arbitrary recursion depth.
 - `launch`/`async` use their receiver scope plus explicit context. Model proven default-dispatcher insertion only when no dispatcher is present. Their child bodies do not contribute to the parent's synchronous call-site summary. Unsupported start modes remain uncertain.
 - `coroutineScope`/`supervisorScope` inherit the current dispatcher. Calls inside their bodies participate in analysis. Distinguish eagerly executed lambdas from stored callbacks and deferred work.
 - Unresolved virtual targets, unidentified custom/injected dispatchers, unknown scope provenance, and missing library summaries contribute `Unknown`. Preserve identified custom dispatchers and their provenance. A custom ViewModel scope prevents assuming Main solely from `viewModelScope`.
@@ -52,15 +56,21 @@ An identified custom dispatcher can use a label such as `Dispatcher Custom(MyDis
 
 Start with Kotlin/JVM project sources, named suspend functions, direct calls, resolved `withContext`, standard builders, simple immutable aliases, and provably identified custom dispatchers. Include a version-scoped Room summary/fixture for an identifiable library-provided dispatcher, alongside standard-dispatcher and unresolved cases. Analyze external suspend implementations only through explicit verified summaries. General higher-order flow, Flow/`flowOn`, DI inference, user-configurable custom dispatcher mapping, and multiplatform analysis are later work; propagate uncertainty where these affect results.
 
-Use a pure dispatcher model, a small Kotlin Analysis API adapter, an incremental project analysis service, and editor providers. Reuse immutable callee summaries for declaration and call-site presentations. Prioritize open files, bound project traversal, and invalidate callers when callees or their dependencies change.
+The alpha's Room summary covers explicit `database.queryExecutor.asCoroutineDispatcher()` for Room 2.7.2 and 2.8.4 when symbol identity and artifact version are proven. Implicit DAO and transaction dispatchers remain unknown. Standard dispatchers selected explicitly in project source retain their usual identities. Unknown library effects prevent full-coverage claims.
 
-Prototype `DaemonBoundCodeVisionProvider` above declarations and declarative `InlayHintsProvider` at calls. Code Vision is experimental; contain it behind an adapter. Verify the specified palette, including mixed entries; evaluate custom presentation if native APIs cannot supply these colors and record any remaining limitation. Provide separate visibility settings and explanations with evidence or uncertainty reasons. Above-code hints reserve visual height but never change document text or line numbers.
+The editor requests analysis without performing it inside an inlay pass. A platform-managed project coroutine waits for a 750 ms typing pause, then analyzes project sources in a cancellable smart read action. New revisions supersede pending or running work. Only a snapshot matching the current source/root revision is published; publication refreshes inlays. Pending or invalidated results are gray and do not reuse stale certainty.
+
+There are no arbitrary file, function, node, or fixed-point-round caps. Caches contain immutable results and are invalidated by PSI or root changes. Cancellation and project disposal stop background work. CPU and memory use still depend on project size; asynchronous execution does not imply a wall-clock or memory guarantee.
+
+Use a pure dispatcher model, a small Kotlin Analysis API adapter, a background project analysis service, and editor providers. Reuse immutable callee summaries for declaration and call-site presentations. Prioritize the requested file and invalidate callers when callees or their dependencies change. Opaque ordinary library calls are modeled at their invocation context; unsupported source helpers and callback behavior retain uncertainty about nested effects.
+
+Use platform-managed `InlayHintsProvider` block and inline presentations. The target's declarative API lacks per-entry color controls, so the classic provider supplies the required mixed palette through custom presentations. Provide settings for call-site visibility and analysis mode, with evidence or uncertainty explanations in badges. Above-code hints reserve visual height but never change document text or line numbers.
 
 ## Baseline and sources
 
-Checked on 2026-10-08. The official stable release page lists Android Studio Quail 4 (2026.1.4). Use this release family as the initial candidate; the bootstrap must record an exact available patch, underlying platform build, bundled Kotlin version, and verified toolchain. Marketing versions alone do not establish API compatibility.
+Verified on 2026-10-08 against the installed IDE and official release metadata: Android Studio Rabbit 1 (download version `2026.2.1.8`), build `AI-262.9437.185.2621.16467767`, bundled Kotlin plugin `262.9437.185.2621.16467767-AS`. The plugin targets platform 262 and Java 25. It declares K2 compatibility explicitly for Plugin Verifier, although the IDE no longer requires that declaration.
 
-The current Gradle plugin documentation shows 2.19.0 and requires Gradle 9.0.0 or newer. Match the JVM toolchain to the actual IDE platform (Java 21 for IntelliJ Platform 2026.1). Check K2 descriptor requirements against that platform; current guidance removes the explicit compatibility tag from IntelliJ IDEA 2026.2 onward.
+The build pins IntelliJ Platform Gradle Plugin 2.19.0, Gradle 9.7.1, and Kotlin 2.4.0. The Gradle wrapper validates the distribution checksum. See [development instructions](development.md) for reproducible commands and the optional local IDE override.
 
 - [Android Studio stable releases](https://developer.android.com/studio/releases/)
 - [Android Studio plugin targeting](https://plugins.jetbrains.com/docs/intellij/android-studio.html)

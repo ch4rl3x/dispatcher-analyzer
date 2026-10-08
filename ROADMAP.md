@@ -20,10 +20,13 @@ The presentation prototype and dispatcher model can proceed in parallel after bo
 
 - Kotlin/JVM source, named suspend functions, direct calls, standard coroutine builders, and resolved withContext.
 - Declaration badges show incoming contexts; call badges show callee effects. Preserve Unknown and label proven partial coverage.
+- Declaration badges have no plugin-specific off switch. Call-site badges default to off and are configurable. Suspend expect declarations and calls are excluded.
+- Analyze asynchronously after a 750 ms typing pause, cancel superseded work, and refresh only current results. Do not cap project size or convergence rounds arbitrarily.
+- Offer automatic analysis (default) or manual analysis with an Analyze project button in the Dispatcher Analyzer side panel. Manual mode keeps stale results gray until explicitly refreshed.
 - Use Main red, Default green, IO yellow, Unknown/analysis problems gray, and other identified dispatchers purple. Verify mixed-entry colors and readable contrast in the prototype; source remains unchanged.
 - Include proven custom identities and a version-scoped Room summary with fixtures. Unresolved library dispatchers stay Unknown; proven standard dispatchers keep their standard color.
 - Defer Flow/flowOn, general higher-order analysis, DI inference, user-configurable custom dispatcher mapping, and multiplatform support. Unsupported cases retain uncertainty.
 
 ## Repository status
 
-Planning documents and GitHub issues are ready. Plugin sources, the Gradle wrapper, build configuration, and CI are deliverables of step 1; no executable implementation or passing build is claimed yet.
+The alpha implementation, Gradle wrapper, demo, and CI are present. Local semantic/editor tests, packaging, and Plugin Verifier pass on the pinned Android Studio target. Final visual smoke testing and CI validation are tracked in #7. See the [validation record](docs/validation.md).

@@ -1,0 +1,26 @@
+<idea-plugin>
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.java</depends>
+    <depends>org.jetbrains.kotlin</depends>
+    <extensions defaultExtensionNs="com.intellij">
+        <codeInsight.inlayProvider language="kotlin"
+            implementationClass="de.charlex.dispatcher.editor.DispatcherInlayProvider"/>
+        <applicationConfigurable parentId="tools" id="dispatcher.analyzer"
+            displayName="Dispatcher Analyzer"
+            instance="de.charlex.dispatcher.editor.DispatcherConfigurable"/>
+        <toolWindow id="Dispatcher Analyzer" anchor="right"
+            factoryClass="de.charlex.dispatcher.editor.DispatcherToolWindowFactory"/>
+    </extensions>
+    <extensions defaultExtensionNs="org.jetbrains.kotlin">
+        <supportsKotlinPluginMode supportsK1="false" supportsK2="true"/>
+    </extensions>
+    <projectListeners>
+        <listener class="de.charlex.dispatcher.editor.DispatcherAnalysisRefreshListener"
+            topic="de.charlex.dispatcher.analysis.DispatcherAnalysisListener"/>
+    </projectListeners>
+    <description><![CDATA[
+        Shows inferred coroutine dispatchers above Kotlin suspend functions
+        and beside their calls, with colored editor-only badges.
+        Unknown and partial results keep analysis limitations visible.
+    ]]></description>
+</idea-plugin>

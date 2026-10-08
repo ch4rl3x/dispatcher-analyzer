@@ -5,7 +5,7 @@
 - Write all repository content, UI text, issues, and pull requests in English.
 - Keep changes focused and documentation concise. Add comments only for non-obvious constraints or decisions.
 - Read `ROADMAP.md` and `docs/analysis-model.md` before implementation; update them when behavior changes.
-- The repository is currently a plan. Add the runnable build in the bootstrap issue; do not claim checks ran before tooling exists.
+- Run relevant checks before committing. Close GitHub tickets only after their implementation is validated and pushed.
 
 ## Git workflow
 
@@ -21,12 +21,15 @@
 - Isolate experimental Analysis API and Code Vision integration. Declare K2 compatibility when required by the target platform.
 - Start with one Gradle module and separate model, analysis, and editor packages. Keep the dispatcher model independent of IDE classes.
 - Use platform-managed, cancellable background work and appropriate read actions. Never resolve symbols or traverse the project on the UI thread.
+- Debounce analysis after a typing pause, cancel superseded work, and publish only results for the current project revision. Do not impose arbitrary file, function, node, or fixed-point-round limits.
+- Default to automatic analysis. In manual mode, analyze only on explicit request from the side panel; edits invalidate results without restarting work. Keep the analysis mode independent of call-site badge visibility.
 - Cache immutable summaries or restorable pointers, not analysis sessions or lifetime-bound symbols. Invalidate dependent results on source and project changes.
-- Handle indexing, incomplete code, project disposal, and exhausted analysis budgets without stale certainty or exceptions in the editor.
+- Handle indexing, incomplete code, project disposal, and pending or canceled analysis without stale certainty or exceptions in the editor.
 
 ## Product contract
 
 - Badges are editor tooling only. Never add annotations, comments, or lines to the user's source.
+- Always provide declaration badges; do not add a plugin-specific switch for them. Call-site badges are optional and disabled by default. Exclude suspend expect declarations and their calls.
 - Keep incoming contexts separate from callee execution effects. Preserve `Unknown`; never infer thread safety from a badge.
 - Follow the documented `(partial)` rule. Do not count asynchronous child bodies as synchronous parent work.
 - Resolve coroutine APIs by symbol identity. Unsupported or dynamic constructs must remain explicitly uncertain.
@@ -38,6 +41,6 @@
 
 - For analysis changes, add focused semantic fixtures for supported behavior and conservative fallbacks.
 - For editor changes, check positions, updates, settings, and unchanged document text in IDE tests and a sandbox smoke test.
-- Once the build exists, run `./gradlew test buildPlugin verifyPluginProjectConfiguration`; run `./gradlew verifyPlugin` for platform/API changes and release candidates.
+- Run `./gradlew test buildPlugin verifyPluginProjectConfiguration`; run `./gradlew verifyPlugin` for platform/API changes and release candidates.
 - Keep CI aligned with these checks. Document unavailable checks and verify the declared Android Studio compatibility range before release.
 - Never put signing keys, publishing tokens, or machine-specific IDE paths in the repository.
