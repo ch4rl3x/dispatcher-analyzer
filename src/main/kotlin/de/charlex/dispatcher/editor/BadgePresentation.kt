@@ -108,7 +108,10 @@ internal object BadgePresentation {
     ) {
         val currentResult = { sourceFileUrl.isNotBlank() && isCurrentAnalysis() }
         val length = editor.document.textLength
-        result.declarations.forEach { (offset, badge) ->
+        val declarations = if (settings.showNonSuspendDeclarations) {
+            result.declarations + result.nonSuspendDeclarations
+        } else result.declarations
+        declarations.forEach { (offset, badge) ->
             ProgressManager.checkCanceled()
             if (offset !in 0..length) return@forEach
             val presentation = create(

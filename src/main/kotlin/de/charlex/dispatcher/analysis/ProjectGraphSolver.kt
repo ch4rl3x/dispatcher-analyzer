@@ -81,18 +81,24 @@ internal class ProjectGraphSolver {
         val calledTargets = calls.mapNotNull { it.target }.toSet()
         val results = files.mapValues { (_, graph) ->
             ProgressManager.checkCanceled()
-            val declarations = graph.functions.filter { it.key in calledTargets || it.name in unresolved }.associate { body ->
+            fun declarations(isSuspend: Boolean) = graph.functions.filter {
+                it.isSuspend == isSuspend && (it.key in calledTargets || it.name in unresolved)
+            }.associate { body ->
                 val summary = EffectSummary(incoming.getValue(body.key))
                 body.key.offset to BadgeResult(summary, tooltip(summary, true))
             }
-            val callResults = graph.calls.associate { call ->
+            val callResults = graph.calls.filter { it.showBadge }.associate { call ->
                 val owner = call.owner?.let(incoming::get) ?: DispatcherSet.EMPTY
                 val summary = evaluate(call.effect, summaries).substitute(owner).let {
                     if (Dispatcher.Inherited in it.dispatchers.known) it.substitute(DispatcherSet.unknown("Caller's context is unknown")) else it
                 }
                 call.offset to BadgeResult(summary, tooltip(summary, false))
             }
-            val result = FileAnalysis(immutable(declarations), immutable(callResults))
+            val result = FileAnalysis(
+                declarations = immutable(declarations(isSuspend = true)),
+                calls = immutable(callResults),
+                nonSuspendDeclarations = immutable(declarations(isSuspend = false)),
+            )
             previous?.results?.get(graph.fileUrl)?.takeIf { it == result } ?: result
         }
         return CachedProjectAnalysis(environment, immutable(files), immutable(summaries), immutable(incoming), immutable(results))

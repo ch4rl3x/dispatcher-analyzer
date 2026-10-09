@@ -16,6 +16,7 @@ import javax.swing.DefaultListCellRenderer
 class DispatcherConfigurable : SearchableConfigurable {
     private var callSiteMode: JComboBox<CallSiteBadgeMode>? = null
     private var onlyInFunction: JCheckBox? = null
+    private var nonSuspendDeclarations: JCheckBox? = null
 
     override fun getId() = "dispatcher.analyzer"
 
@@ -24,6 +25,10 @@ class DispatcherConfigurable : SearchableConfigurable {
     override fun createComponent(): JComponent = JPanel().apply {
         layout = BoxLayout(this, BoxLayout.Y_AXIS)
         val settings = service<DispatcherSettings>()
+        nonSuspendDeclarations = JCheckBox("Show badges above non-suspend functions").apply {
+            isSelected = settings.showNonSuspendDeclarations
+            alignmentX = Component.LEFT_ALIGNMENT
+        }.also { add(it) }
         val mode = JComboBox(CallSiteBadgeMode.entries.toTypedArray()).apply {
             selectedItem = settings.callSiteMode
             maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
@@ -62,17 +67,19 @@ class DispatcherConfigurable : SearchableConfigurable {
     override fun isModified(): Boolean {
         val settings = service<DispatcherSettings>()
         return callSiteMode?.selectedItem?.let { it != settings.callSiteMode } == true ||
-            onlyInFunction?.isSelected?.let { it != settings.onlyInFunctionContainingCaret } == true
+            onlyInFunction?.isSelected?.let { it != settings.onlyInFunctionContainingCaret } == true ||
+            nonSuspendDeclarations?.isSelected?.let { it != settings.showNonSuspendDeclarations } == true
     }
 
     override fun apply() {
         val calls = callSiteMode?.selectedItem as? CallSiteBadgeMode ?: return
         val onlyFunction = onlyInFunction?.isSelected ?: false
-        service<DispatcherSettings>().update(calls, onlyFunction)
+        service<DispatcherSettings>().update(calls, onlyFunction, nonSuspendDeclarations?.isSelected ?: false)
     }
 
     override fun reset() {
         val settings = service<DispatcherSettings>()
+        nonSuspendDeclarations?.isSelected = settings.showNonSuspendDeclarations
         callSiteMode?.selectedItem = settings.callSiteMode
         onlyInFunction?.apply {
             isSelected = settings.onlyInFunctionContainingCaret
@@ -83,5 +90,6 @@ class DispatcherConfigurable : SearchableConfigurable {
     override fun disposeUIResources() {
         callSiteMode = null
         onlyInFunction = null
+        nonSuspendDeclarations = null
     }
 }

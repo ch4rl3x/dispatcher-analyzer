@@ -58,6 +58,6 @@ Release assets are the only uploaded artifacts. GitHub release publication does 
 
 ## Analysis cache
 
-Opening or importing a project starts background analysis after indexing. Saving Kotlin sources, including IDE autosave, updates the changed files and affected dependencies. Unsaved edits invalidate badges without starting another analysis. Settings > Tools > Dispatcher Analyzer controls call-site badges only. The editor toolbar’s Reanalyze dispatcher usage in file action saves and force-refreshes the current file and affected dependencies.
+Opening or importing a project starts background analysis after indexing. Saving Kotlin sources, including IDE autosave, updates the changed files and affected dependencies. Unsaved edits invalidate badges without starting another analysis. Settings > Tools > Dispatcher Analyzer controls call-site badges and optional non-suspend declaration badges. The editor toolbar’s Reanalyze dispatcher usage in file action saves and force-refreshes the current file and affected dependencies.
 
 The disposable binary cache lives under the analyzed project’s `build/dispatcher-analyzer/` directory. It contains immutable source graphs, summaries, and dispatcher origins, with source/environment fingerprints and a versioned format. Keep it out of version control. Delete the directory to discard it; missing or incompatible cache data is rebuilt automatically. Structural source changes and dependency/root changes can require a full rebuild.

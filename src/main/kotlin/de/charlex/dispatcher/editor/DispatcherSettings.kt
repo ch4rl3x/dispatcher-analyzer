@@ -19,6 +19,9 @@ class DispatcherSettings : PersistentStateComponent<DispatcherHintSettings> {
     val onlyInFunctionContainingCaret: Boolean
         get() = stored.onlyInFunctionContainingCaret
 
+    val showNonSuspendDeclarations: Boolean
+        get() = stored.showNonSuspendDeclarations
+
     override fun getState(): DispatcherHintSettings =
         stored.copy(showCalls = showCalls, callSiteMode = callSiteMode)
 
@@ -35,8 +38,14 @@ class DispatcherSettings : PersistentStateComponent<DispatcherHintSettings> {
         update(mode, stored.onlyInFunctionContainingCaret)
     }
 
-    fun update(mode: CallSiteBadgeMode, onlyInFunctionContainingCaret: Boolean) {
-        val next = DispatcherHintSettings(mode != CallSiteBadgeMode.NONE, mode, onlyInFunctionContainingCaret)
+    fun update(
+        mode: CallSiteBadgeMode,
+        onlyInFunctionContainingCaret: Boolean,
+        showNonSuspendDeclarations: Boolean = stored.showNonSuspendDeclarations,
+    ) {
+        val next = DispatcherHintSettings(
+            mode != CallSiteBadgeMode.NONE, mode, onlyInFunctionContainingCaret, showNonSuspendDeclarations,
+        )
         if (stored == next) return
         stored = next
         InlayRefresh.restartOpenProjects()

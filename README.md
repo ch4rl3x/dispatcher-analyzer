@@ -31,6 +31,8 @@ Hover for an explanation. Click a colored dispatcher name to jump to its source 
 
 By default, call badges show only dispatcher-setting calls. Choose all calls, none, or limit them to the current function under **Settings → Tools → Dispatcher Analyzer**.
 
+Enable **Show badges above non-suspend functions** on the same settings page to see incoming contexts for ordinary functions too. This is off by default and requires project call evidence. Direct helper calls propagate their caller's context; unresolved entry points and callbacks retain `Unknown`.
+
 ## Scope
 
 Kotlin/JVM suspend functions, direct calls, standard coroutine builders, and proven dispatcher aliases. Flow, general higher-order analysis, DI inference, and multiplatform are outside this alpha; unresolved behavior stays `Unknown`.

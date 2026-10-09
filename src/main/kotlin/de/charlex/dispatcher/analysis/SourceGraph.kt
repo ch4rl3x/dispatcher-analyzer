@@ -13,6 +13,7 @@ internal data class FunctionBody(
     val key: FunctionKey,
     val name: String?,
     val effect: Effect,
+    val isSuspend: Boolean = true,
 )
 
 internal class AnalysisProgress {
@@ -33,16 +34,18 @@ internal class SourceGraph(
     fun body(function: KtNamedFunction): FunctionBody {
         val key = key(function)
         val suspend = function.hasModifier(KtTokens.SUSPEND_KEYWORD)
-        val inherited = if (suspend) DispatcherSet.of(Dispatcher.Inherited)
-            else DispatcherSet.unknown("Non-suspend entry context is unknown")
+        val supported = isSupported(function)
+        val inherited = if (supported) DispatcherSet.of(Dispatcher.Inherited)
+            else DispatcherSet.unknown("Unsupported function entry context is unknown")
         val rawEffect = if (function.bodyExpression == null) unknown("Function body is unavailable")
-            else ensureExecution(walk(function.bodyExpression, inherited, null, if (suspend) key else null), inherited)
+            else ensureExecution(walk(function.bodyExpression, inherited, null, if (supported) key else null), inherited)
         val effect = if (PsiTreeUtil.hasErrorElements(function)) group(listOf(rawEffect, unknown("Incomplete Kotlin code")))
             else rawEffect
         return FunctionBody(
             key,
             function.name,
             effect,
+            isSuspend = suspend,
         )
     }
 
@@ -195,7 +198,14 @@ internal class SourceGraph(
                 resolved.sourceDefined -> unknown("Non-suspend source helper effects are not modeled")
                 else -> EMPTY
             }
-            return group(argumentEffects + lambdaEffects + work(context) + uncertainty)
+            val effect = group(listOf(work(context), uncertainty))
+            resolved.target?.takeIf { isSupported(it) && !it.containingKtFile.isCompiled }?.let { target ->
+                val incoming = if (resolved.virtual) context.join(
+                    DispatcherSet.unknown("Virtual target may have another implementation"),
+                ) else context
+                record(expression, owner, key(target), incoming, effect, showBadge = false)
+            }
+            return group(argumentEffects + lambdaEffects + effect)
         }
         val target = resolved.target?.let(::key)
         val effect = when {
@@ -237,12 +247,13 @@ internal class SourceGraph(
         target: FunctionKey?,
         context: DispatcherSet,
         effect: Effect,
+        showBadge: Boolean = true,
     ) {
         val anchor = if (expression.lambdaArguments.isEmpty()) expression else {
             expression.valueArgumentList ?: expression.typeArgumentList ?: expression.calleeExpression ?: return
         }
         calls += SourceCall(expression.containingFile.virtualFile?.url ?: expression.containingFile.name,
-            anchor.textRange.endOffset, owner, target, context, effect)
+            anchor.textRange.endOffset, owner, target, context, effect, showBadge)
     }
 
     companion object {
@@ -251,7 +262,7 @@ internal class SourceGraph(
             function.textRange.startOffset,
         )
         fun isSupported(function: KtNamedFunction): Boolean =
-            function.hasModifier(KtTokens.SUSPEND_KEYWORD) &&
+            function.name != null &&
                 generateSequence(function as PsiElement?) { it.parent }
                     .filterIsInstance<KtModifierListOwner>().none { it.hasModifier(KtTokens.EXPECT_KEYWORD) }
         private val EMPTY = Effect.Work(EffectSummary.EMPTY)

@@ -1,6 +1,6 @@
 # Roadmap
 
-Deliver an Android Studio plugin with editor-only dispatcher badges above suspend declarations and at call sites. See the [analysis contract](docs/analysis-model.md) for exact meaning and limitations.
+Deliver an Android Studio plugin with editor-only dispatcher badges above suspend declarations, optionally above non-suspend declarations, and at call sites. See the [analysis contract](docs/analysis-model.md) for exact meaning and limitations.
 
 ## Implementation order
 
@@ -25,11 +25,12 @@ The presentation prototype and dispatcher model can proceed in parallel after bo
 ## Initial scope
 
 - Kotlin/JVM source, named suspend functions, direct calls, standard coroutine builders, and resolved withContext.
+- An opt-in setting shows incoming-context badges above called non-suspend functions. Direct ordinary helper chains propagate contexts and origins; callbacks, unresolved entries, and virtual targets preserve uncertainty. The setting only changes declaration presentation, with no new ordinary call-site badges.
 - Declaration and call badges use `Dispatcher.…` for incoming contexts and callee effects respectively. Tooltips describe incoming contexts at declarations and explicit switches at calls, using the badge palette; inherited calls describe execution contexts. Preserve Unknown and label proven partial coverage.
 - Place declaration badges below Code Vision usages, closer to the function, with a fixed inlay priority.
 - Place call badges immediately after the call's argument list, before any trailing lambda; never after its closing brace. Calls without parentheses use the callee name or type arguments as the anchor.
 - Omit redundant `withContext` badges when its argument directly identifies a standard dispatcher. Keep badges for value aliases, unresolved values, and ordinary calls whose callee switches dispatchers internally.
-- Functions without project code calls have no declaration badge; public visibility and documentation references alone are insufficient. Public visibility does not add Unknown to known project call contexts. Declaration badges have no plugin-specific off switch. A dropdown selects all call-site badges, only dispatcher-setting calls (default), or none. Filtered badges show only explicitly selected dispatcher entries and their origins, while `(partial)` still reflects the complete workload. An optional checkbox limits call badges to the function containing the caret. Suspend expect declarations and calls are excluded.
+- Functions without project code calls have no declaration badge; public visibility and documentation references alone are insufficient. Public visibility does not add Unknown to known project call contexts. Suspend declaration badges have no plugin-specific off switch. A dropdown selects all call-site badges, only dispatcher-setting calls (default), or none. Filtered badges show only explicitly selected dispatcher entries and their origins, while `(partial)` still reflects the complete workload. An optional checkbox limits call badges to the function containing the caret. Expect declarations and calls are excluded.
 - Analyze automatically after project import and saved changes, including IDE autosave. Typing cancels and invalidates work without starting a new analysis. No manual mode or side panel is needed.
 - Provide a Reanalyze dispatcher usage in file icon in the editor toolbar to save and force-refresh the active file and its affected dependencies.
 - Cache immutable per-file graphs under `build/dispatcher-analyzer/`, validate fingerprints on reopen, and update changed files and affected dependencies. Rebuild after cache removal, structural changes, or environment changes. Do not cap project size or convergence rounds arbitrarily.
@@ -40,6 +41,8 @@ The presentation prototype and dispatcher model can proceed in parallel after bo
 
 ## Repository status
 
+Optional non-suspend declaration badges are implemented and validated with 168 tests, packaging, project configuration checks, Plugin Verifier, and the updated demo. Their native visual smoke check is unavailable because UI automation cannot access the Java sandbox window.
+
 Tooltips omit generic context descriptions and the thread-safety disclaimer, retaining function-specific descriptions and analysis diagnostics.
 
-The alpha implementation, Gradle wrapper, demo, installation guide, and release automation are present. All 156 local tests, packaging, and Plugin Verifier pass on the pinned Android Studio target. Earlier native light/dark smoke checks passed; the latest badge-placement, filtered-entry, and tooltip changes are covered by IDE tests, with their native visual rechecks unavailable. GitHub Actions validates changes before releasing qualifying Conventional Commits on `main` with a SemVer tag, installable ZIP, and checksum. Files are attached only to releases; normal workflow runs upload no artifacts. Release versions are injected during the build without version-bump commits. See the [release rules](docs/development.md#releases) and [validation record](docs/validation.md).
+The alpha implementation, Gradle wrapper, demo, installation guide, and release automation are present. All 168 local tests, packaging, and Plugin Verifier pass on the pinned Android Studio target. Earlier native light/dark smoke checks passed; the latest badge-placement, filtered-entry, and tooltip changes are covered by IDE tests, with their native visual rechecks unavailable. GitHub Actions validates changes before releasing qualifying Conventional Commits on `main` with a SemVer tag, installable ZIP, and checksum. Files are attached only to releases; normal workflow runs upload no artifacts. Release versions are injected during the build without version-bump commits. See the [release rules](docs/development.md#releases) and [validation record](docs/validation.md).

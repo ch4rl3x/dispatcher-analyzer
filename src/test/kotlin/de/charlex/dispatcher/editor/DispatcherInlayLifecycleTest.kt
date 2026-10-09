@@ -28,6 +28,71 @@ import java.awt.datatransfer.DataFlavor
 class DispatcherInlayLifecycleTest : BasePlatformTestCase() {
     override fun getProjectDescriptor() = LightJavaCodeInsightFixtureTestCase.JAVA_21
 
+    fun testNonSuspendSettingRefreshesDeclarationsAndSavedContexts() {
+        System.getProperty("dispatcher.fixture.libraries").split(File.pathSeparator).forEach { path ->
+            val library = File(path)
+            PsiTestUtil.addLibrary(myFixture.module, library.nameWithoutExtension, library.parent, library.name)
+        }
+        val settings = service<DispatcherSettings>()
+        val saved = settings.getState()
+        try {
+            settings.loadState(DispatcherHintSettings(callSiteMode = CallSiteBadgeMode.NONE))
+            val source = """
+                import kotlinx.coroutines.*
+                fun parse() = 42
+                private suspend fun load() = parse()
+                fun unused() = 1
+                fun start() { CoroutineScope(Dispatchers.Main).launch { load() } }
+            """.trimIndent()
+            val file = myFixture.addFileToProject("NonSuspendBadges.kt", source) as KtFile
+            myFixture.configureFromExistingVirtualFile(file.virtualFile)
+            val editor = myFixture.editor
+            FileDocumentManager.getInstance().saveAllDocuments()
+            val analysis = project.service<DispatcherAnalysisService>()
+            analysis.startAnalysis()
+            PlatformTestUtil.waitWithEventsDispatching("Initial non-suspend analysis", { analysis.hasCurrentAnalysis(file) }, 30)
+            val parse = source.indexOf("fun parse")
+            val load = source.indexOf("private suspend fun load")
+            fun awaitDeclarations(offsets: Set<Int>) {
+                myFixture.doHighlighting()
+                PlatformTestUtil.waitWithEventsDispatching("Non-suspend declaration inlays", {
+                    editor.inlayModel.getBlockElementsInRange(0, editor.document.textLength).map { it.offset }.toSet() == offsets
+                }, 20)
+            }
+            awaitDeclarations(setOf(load))
+            val initialInlineOffsets = editor.inlayModel.getInlineElementsInRange(0, source.length).map { it.offset }
+            val initial = ReadAction.compute<de.charlex.dispatcher.analysis.FileAnalysis, RuntimeException> {
+                analysis.requestAnalysis(file)
+            }
+            settings.update(CallSiteBadgeMode.NONE, true, showNonSuspendDeclarations = true)
+            awaitDeclarations(setOf(parse, load))
+            assertTrue(analysis.isCurrentAnalysis(file.virtualFile.url, initial))
+            assertEquals(initialInlineOffsets, editor.inlayModel.getInlineElementsInRange(0, source.length).map { it.offset })
+            assertEquals(source, editor.document.text)
+            assertEquals(source.lines().size, editor.document.lineCount)
+            assertEquals(setOf(Dispatcher.Main), initial.nonSuspendDeclarations.getValue(parse).summary.dispatchers.known)
+
+            val revised = source.replace("Dispatchers.Main", "Dispatchers.IO")
+            WriteCommandAction.runWriteCommandAction(project) {
+                editor.document.setText(revised)
+                PsiDocumentManager.getInstance(project).commitAllDocuments()
+            }
+            FileDocumentManager.getInstance().saveDocument(editor.document)
+            PlatformTestUtil.waitWithEventsDispatching("Saved non-suspend analysis", { analysis.hasCurrentAnalysis(file) }, 30)
+            awaitDeclarations(setOf(parse, load))
+            val incoming = ReadAction.compute<EffectSummary, RuntimeException> {
+                analysis.requestAnalysis(file).nonSuspendDeclarations.getValue(parse).summary
+            }
+            assertEquals(setOf(Dispatcher.IO), incoming.dispatchers.known)
+            assertFalse(incoming.dispatchers.hasUnknown)
+            settings.update(CallSiteBadgeMode.NONE, true, showNonSuspendDeclarations = false)
+            awaitDeclarations(setOf(load))
+            assertEquals(revised, editor.document.text)
+        } finally {
+            settings.loadState(saved)
+        }
+    }
+
     fun testExplicitDispatcherCallsStayHiddenAfterSettingsAndSavedEdits() {
         System.getProperty("dispatcher.fixture.libraries").split(File.pathSeparator).forEach { path ->
             val library = File(path)

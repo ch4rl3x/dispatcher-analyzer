@@ -441,7 +441,11 @@ class DispatcherAnalysisService(private val project: Project, private val corout
         val document = file.virtualFile?.let { FileDocumentManager.getInstance().getCachedDocument(it) }
         if (document != null && !PsiDocumentManager.getInstance(project).isCommitted(document)) return FileAnalysis()
         val badge = BadgeResult(EffectSummary(DispatcherSet.unknown(reason)), reason)
-        return FileAnalysis(immutable(old.declarations.keys.associateWith { badge }), immutable(old.calls.keys.associateWith { badge }))
+        return FileAnalysis(
+            immutable(old.declarations.keys.associateWith { badge }),
+            immutable(old.calls.keys.associateWith { badge }),
+            immutable(old.nonSuspendDeclarations.keys.associateWith { badge }),
+        )
     }
 
     private fun updateStatus(value: String, requestedGeneration: Long) {

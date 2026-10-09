@@ -97,6 +97,35 @@ class SavedCacheLifecycleTest : BasePlatformTestCase() {
         assertEquals(setOf(Dispatcher.Default), lastCall(recovered, file).summary.dispatchers.known)
     }
 
+    fun testReopeningReusesNonSuspendIncomingContextsAndOrigins() {
+        val file = myFixture.addFileToProject("Helpers.kt", """
+            import kotlinx.coroutines.*
+            fun parse() = 42
+            fun bridge() = parse()
+            fun start() { CoroutineScope(Dispatchers.IO).launch { bridge() } }
+        """.trimIndent()) as KtFile
+        FileDocumentManager.getInstance().saveAllDocuments()
+        val first = analysis()
+        first.startAnalysis()
+        awaitCurrent(first, file)
+        await("Helper cache write") { Files.isRegularFile(cachePath()) }
+        val expected = ReadAction.compute<FileAnalysis, RuntimeException> { first.requestAnalysis(file) }
+        stopLastService()
+        val reopened = analysis()
+        reopened.startAnalysis()
+        awaitCurrent(reopened, file)
+        assertTrue(reopened.lastResolvedFiles.isEmpty())
+        val restored = ReadAction.compute<FileAnalysis, RuntimeException> { reopened.requestAnalysis(file) }
+        assertEquals(expected, restored)
+        assertEquals(2, restored.nonSuspendDeclarations.size)
+        restored.nonSuspendDeclarations.values.forEach { badge ->
+            assertEquals(setOf(Dispatcher.IO), badge.summary.dispatchers.known)
+            assertFalse(badge.summary.dispatchers.hasUnknown)
+            assertEquals(setOf(file.text.indexOf("Dispatchers.IO")),
+                badge.summary.dispatchers.origins.getValue(Dispatcher.IO).map { it.offset }.toSet())
+        }
+    }
+
     fun testDeletingBuildCacheRebuildsWithoutAnEditorRequest() {
         val file = source()
         val current = analysis()
