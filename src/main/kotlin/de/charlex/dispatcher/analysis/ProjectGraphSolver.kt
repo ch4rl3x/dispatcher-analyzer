@@ -143,14 +143,12 @@ internal class ProjectGraphSolver {
 
         private fun unknown(reason: String) = EffectSummary(DispatcherSet.unknown(reason))
         private fun tooltip(summary: EffectSummary, declaration: Boolean): String = buildString {
-            append(if (declaration) "Possible incoming dispatcher contexts. " else "Dispatcher contexts for callee execution. ")
             if (!declaration) {
                 if (PathRelation.CONTEXT_SWITCH in summary.pathRelations) append("Includes dispatcher switches within a path. ")
                 if (PathRelation.BRANCH_ALTERNATIVES in summary.pathRelations) append("Includes alternative execution paths. ")
                 if (summary.dispatchers.hasUnknown) append("Coverage is unknown. ")
             }
             append(summary.dispatchers.unknownReasons.sorted().joinToString(". "))
-            append(" A dispatcher badge is not a thread-safety guarantee.")
         }
     }
 }

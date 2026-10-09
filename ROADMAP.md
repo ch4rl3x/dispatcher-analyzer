@@ -39,4 +39,6 @@ The presentation prototype and dispatcher model can proceed in parallel after bo
 
 ## Repository status
 
+Tooltips omit generic context descriptions and the thread-safety disclaimer, retaining function-specific descriptions and analysis diagnostics.
+
 The alpha implementation, Gradle wrapper, demo, installation guide, and release automation are present. All 156 local tests, packaging, and Plugin Verifier pass on the pinned Android Studio target. Earlier native light/dark smoke checks passed; the latest badge-placement, filtered-entry, and tooltip changes are covered by IDE tests, with their native visual rechecks unavailable. GitHub Actions validates changes before releasing qualifying Conventional Commits on `main` with a SemVer tag, installable ZIP, and checksum. Files are attached only to releases; normal workflow runs upload no artifacts. Release versions are injected during the build without version-bump commits. See the [release rules](docs/development.md#releases) and [validation record](docs/validation.md).

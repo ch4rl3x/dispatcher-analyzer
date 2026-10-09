@@ -22,6 +22,8 @@ Regression thresholds are 30 seconds for initial analysis and 1 second for cache
 
 ## Native sandbox checks
 
+The removal of generic tooltip context sentences and the thread-safety disclaimer passed all 156 tests, packaging, and project configuration validation on 2026-10-09. The cache version was advanced to discard stored descriptions containing the removed text. No native smoke check was repeated for this text-only change; the UI automation limitation below remains.
+
 The unified `Dispatcher.` labels and dynamic colored tooltips passed all 156 tests, packaging, configuration validation, and Plugin Verifier on 2026-10-09. The native visual check remains unverified: the Gradle sandbox started, but UI automation rejected its Java app identity (`Invalid app: net.java.openjdk.java`). The sandbox was stopped after the attempt. Tooltip colors are verified by rendering the IDE information-label component in headless tests.
 
 The toolbar wording change passed all 151 tests, plugin packaging, and project configuration validation on 2026-10-09; the packaged descriptor contains the updated label and description. Its native visual check remains unverified: the sandbox started, but UI automation rejected its Java app identity and could not access the window. The sandbox was stopped after the attempt.

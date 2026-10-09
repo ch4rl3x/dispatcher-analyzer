@@ -486,7 +486,7 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
 
     companion object {
         private const val MAGIC = 0x44414E41
-        private const val VERSION = 4
+        private const val VERSION = 5
         private const val IO_CHUNK_SIZE = 16 * 1024
         private const val DIGEST_LENGTH = 32
 
