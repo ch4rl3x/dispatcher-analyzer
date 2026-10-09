@@ -79,15 +79,15 @@ class DispatcherAnalysisIntegrationTest : BasePlatformTestCase() {
         assertEquals(setOf(Dispatcher.Main), call(file, result, "delay(3)").summary.dispatchers.known)
     }
 
-    fun testPublicEntryRetainsUnknownAlongsideKnownCallers() {
+    fun testPublicEntryUsesKnownProjectCallers() {
         val file = source("""
             import kotlinx.coroutines.*
             suspend fun load() { println("work") }
             fun start() { CoroutineScope(Dispatchers.Main).launch { load() } }
         """)
         val badge = declaration(file, analyze(file), "load")
-        assertTrue(Dispatcher.Main in badge.summary.dispatchers.known)
-        assertTrue(badge.summary.dispatchers.hasUnknown)
+        assertEquals(setOf(Dispatcher.Main), badge.summary.dispatchers.known)
+        assertFalse(badge.summary.dispatchers.hasUnknown)
     }
 
     fun testAliasAndNonDispatcherContextPreserveMain() {

@@ -55,7 +55,6 @@ internal class ProjectGraphSolver {
         val incoming = bodies.mapValuesTo(linkedMapOf()) { (key, body) ->
             if (key !in incomingToSolve) previous?.incoming?.get(key) ?: DispatcherSet.EMPTY else {
                 val reasons = linkedSetOf<String>()
-                if (body.openEntry) reasons += "External callers may use another dispatcher"
                 if (body.name in unresolved) reasons += "An unresolved call may target this declaration"
                 if (key in escaped) reasons += "A callable reference may escape the analyzed call graph"
                 DispatcherSet(unknownReasons = reasons)

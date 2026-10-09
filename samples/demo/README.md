@@ -14,7 +14,7 @@ Expected badges:
 - `mixedWorkload`: its call inside the Main launch has `Main (partial) | IO (partial)`.
 - `injectedDispatcherWork`: the call includes gray `Unknown` because the injected dispatcher identity is unresolved.
 - `databaseWork`: the call shows an identified custom dispatcher for the `databaseDispatcher` value, with a stable identity distinct from other custom dispatchers.
-- `externallyCallableWork`: its Main caller contributes Main; public visibility adds Unknown. Remove its project call to hide the declaration badge while its `delay(1)` call retains gray Unknown. This README reference does not count as a call.
+- `externallyCallableWork`: its project caller contributes Main only; public visibility does not add Unknown. Remove its project call to hide the declaration badge while its `delay(1)` call retains gray Unknown. This README reference does not count as a call.
 
 Click a colored dispatcher name to open its source expression. The IO declaration entry for `readFromDisk` has multiple contributing IO expressions and offers a chooser; Main navigates directly to its own launch context.
 

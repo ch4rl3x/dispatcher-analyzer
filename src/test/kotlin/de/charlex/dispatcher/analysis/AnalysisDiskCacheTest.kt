@@ -108,6 +108,23 @@ class AnalysisDiskCacheTest {
     }
 
     @Test
+    fun cachesWithVisibilityBasedIncomingUncertaintyAreDiscarded() = runBlocking {
+        val projectDirectory = Files.createTempDirectory("dispatcher-cache-legacy-visibility")
+        try {
+            val cache = AnalysisDiskCache(projectDirectory)
+            val expected = sampleAnalysis()
+            cache.save(expected)
+            val payload = Files.readAllBytes(cache.path).dropLast(32).toByteArray()
+            ByteBuffer.wrap(payload).putInt(4, 3)
+            Files.write(cache.path, payload + MessageDigest.getInstance("SHA-256").digest(payload))
+
+            assertNull(cache.load(expected.environmentFingerprint))
+        } finally {
+            projectDirectory.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun malformedDeclaredLengthCannotExceedActualFileBytes() = runBlocking {
         val projectDirectory = Files.createTempDirectory("dispatcher-cache-length")
         try {
@@ -206,7 +223,7 @@ class AnalysisDiskCacheTest {
             contentHash = "source-content-hash",
             structureHash = "declaration-shape-hash",
             dependencies = setOf("library:coroutines:1", "module:app"),
-            functions = listOf(FunctionBody(worker, "worker", effect, openEntry = false)),
+            functions = listOf(FunctionBody(worker, "worker", effect)),
             calls = listOf(SourceCall(worker.file, 42, worker, worker, incoming, effect)),
             unresolvedNames = setOf("customScope"),
             escapingTargets = setOf(worker),

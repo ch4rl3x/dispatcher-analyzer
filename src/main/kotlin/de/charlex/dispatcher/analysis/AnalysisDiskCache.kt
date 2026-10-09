@@ -133,7 +133,6 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
             writeFunctionKey(body.key)
             writeNullableString(body.name)
             writeEffect(body.effect)
-            output.writeBoolean(body.openEntry)
         }
 
         private fun writeSourceCall(call: SourceCall) {
@@ -299,7 +298,6 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
             key = readFunctionKey(),
             name = readNullableString(),
             effect = readEffect(),
-            openEntry = input.readBoolean(),
         )
 
         private fun readSourceCall() = SourceCall(
@@ -488,7 +486,7 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
 
     companion object {
         private const val MAGIC = 0x44414E41
-        private const val VERSION = 3
+        private const val VERSION = 4
         private const val IO_CHUNK_SIZE = 16 * 1024
         private const val DIGEST_LENGTH = 32
 

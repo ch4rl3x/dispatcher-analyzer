@@ -10,6 +10,7 @@ import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase
+import de.charlex.dispatcher.model.Dispatcher
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import java.io.File
@@ -47,6 +48,79 @@ class DeclarationEvidenceTest : BasePlatformTestCase() {
         val dispatchers = result.calls.getValue(offset).summary.dispatchers
         assertTrue(dispatchers.hasUnknown)
         assertTrue(dispatchers.known.isEmpty())
+    }
+
+    fun testPublicCallChainUsesOnlyKnownProjectCallers() {
+        val file = source("""
+            import kotlinx.coroutines.*
+            public suspend fun externallyCallableWork() { nestedWork() }
+            internal suspend fun nestedWork() { delay(1) }
+        """)
+        val caller = myFixture.addFileToProject("Caller.kt", """
+            import kotlinx.coroutines.*
+            fun launchExamples(scope: CoroutineScope) {
+                scope.launch(Dispatchers.Main) { externallyCallableWork() }
+            }
+        """.trimIndent()) as KtFile
+        myFixture.addFileToProject("README.md", "Call externallyCallableWork().")
+
+        val main = analyze(file)
+        assertEquals(2, main.declarations.size)
+        (main.declarations.values + main.calls.values).forEach { badge ->
+            assertEquals(setOf(Dispatcher.Main), badge.summary.dispatchers.known)
+            assertFalse(badge.summary.dispatchers.hasUnknown)
+        }
+
+        replace(caller, """
+            import kotlinx.coroutines.*
+            fun launchExamples(scope: CoroutineScope) {
+                scope.launch(Dispatchers.Main) { externallyCallableWork() }
+                scope.launch(Dispatchers.IO) { externallyCallableWork() }
+            }
+        """.trimIndent())
+        analyze(file).declarations.values.forEach { badge ->
+            assertEquals(setOf(Dispatcher.Main, Dispatcher.IO), badge.summary.dispatchers.known)
+            assertFalse(badge.summary.dispatchers.hasUnknown)
+        }
+
+        replace(caller, """
+            import kotlinx.coroutines.*
+            fun launchExamples(scope: CoroutineScope) {
+                scope.launch(Dispatchers.IO) { externallyCallableWork() }
+            }
+        """.trimIndent())
+        analyze(file).declarations.values.forEach { badge ->
+            assertEquals(setOf(Dispatcher.IO), badge.summary.dispatchers.known)
+            assertFalse(badge.summary.dispatchers.hasUnknown)
+        }
+    }
+
+    fun testPublicFunctionKeepsUncertaintyFromUnresolvedProjectEntry() {
+        val file = source("""
+            import kotlinx.coroutines.*
+            public suspend fun work() { delay(1) }
+            suspend fun unknownEntry() { work() }
+            fun mainEntry(scope: CoroutineScope) {
+                scope.launch(Dispatchers.Main) { work() }
+            }
+        """)
+        val badge = analyze(file).declarations.values.single()
+        assertEquals(setOf(Dispatcher.Main), badge.summary.dispatchers.known)
+        assertTrue(badge.summary.dispatchers.hasUnknown)
+    }
+
+    fun testPublicFunctionKeepsUncertaintyFromEscapingReference() {
+        val file = source("""
+            import kotlinx.coroutines.*
+            public suspend fun work() { delay(1) }
+            val callback: suspend () -> Unit = ::work
+            fun mainEntry(scope: CoroutineScope) {
+                scope.launch(Dispatchers.Main) { work() }
+            }
+        """)
+        val badge = analyze(file).declarations.values.single()
+        assertEquals(setOf(Dispatcher.Main), badge.summary.dispatchers.known)
+        assertTrue(badge.summary.dispatchers.hasUnknown)
     }
 
     fun testCallableReferenceAloneDoesNotCreateDeclarationBadge() {

@@ -13,7 +13,6 @@ internal data class FunctionBody(
     val key: FunctionKey,
     val name: String?,
     val effect: Effect,
-    val openEntry: Boolean,
 )
 
 internal class AnalysisProgress {
@@ -44,7 +43,6 @@ internal class SourceGraph(
             key,
             function.name,
             effect,
-            !function.hasModifier(KtTokens.PRIVATE_KEYWORD) && !function.isLocal,
         )
     }
 

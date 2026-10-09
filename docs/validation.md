@@ -4,12 +4,13 @@ Validated on 2026-10-09 with Android Studio Rabbit 1, build `AI-262.9437.185.262
 
 ## Automated checks
 
-- All 147 semantic and IDE tests pass, covering dispatcher identities, incoming contexts, execution effects, scoped Room evidence, source navigation, settings migration, caret filtering, startup/save triggers, incremental dependencies, cache restart/corruption/deletion, cancellation, indexing, incomplete code, and disposal.
+- All 151 semantic and IDE tests pass, covering dispatcher identities, incoming contexts, execution effects, scoped Room evidence, source navigation, settings migration, caret filtering, startup/save triggers, incremental dependencies, cache restart/corruption/deletion, cancellation, indexing, incomplete code, and disposal.
 - Complete-source fixtures cover 1,050 functions, 130 source files, and a 71-function call chain. No project-size or fixed-point-round caps are used.
 - `test`, `buildPlugin`, `verifyPluginProjectConfiguration`, and `verifyPlugin` pass with the pinned IDE. Plugin Verifier reports compatibility without internal API usage. Experimental analysis/editor APIs limit the advertised range to platform 262; the exact build above is the tested target.
 - Editor fixtures check positions, unchanged source and line counts, copy, formatting, undo, zoom, settings, and live caret updates. Suspend expect declarations and calls are excluded.
 - Placement regressions cover trailing-lambda headers, redundant direct-dispatcher badge suppression, value/import aliases, shadowed symbols, wrapper effects, saved edits, and rejection of caches with old badge positions.
 - Filtered-mode regressions verify that mixed Main/IO workload displays only IO (partial), while All calls retains both entries. Tests cover selection origins, nested and transitive switches, unknown selections and bodies, save/settings updates, and rejection of caches without selection identities.
+- Public and internal functions inherit only project call contexts, including transitive Main/IO paths and caller edits. Unresolved entries and escaping references retain Unknown; caches with visibility-based uncertainty are rejected. This analysis-only change passed the automated checks above; no new native sandbox smoke check was run.
 - The standalone demo compiles with its Gradle 9.7.1 wrapper and JDK 25.
 
 ## Performance sample

@@ -2,7 +2,7 @@
 
 ## Two badge meanings
 
-**Declaration:** union of possible incoming dispatcher contexts discovered in the analyzed project. Show a badge only when project code contains a call to the function. Public visibility or a README reference alone is insufficient; uncalled functions have no declaration badge. When calls exist, public/external entry points, unresolved callers, and incomplete analysis add `Unknown`; a closed private call graph can have only known entries. This describes callers, not a thread-safety contract.
+**Declaration:** union of possible incoming dispatcher contexts discovered in the analyzed project. Show a badge only when project code contains a call to the function. Public visibility or a README reference alone is insufficient; uncalled functions have no declaration badge. Incoming contexts reflect calls in the analyzed project regardless of declaration visibility; hypothetical external callers do not add `Unknown`. Unresolved callers, escaping callable references, and incomplete analysis still add `Unknown`. This describes callers, not a thread-safety contract.
 
 **Call site:** possible dispatcher contexts for executable work in the resolved callee, substituting this call's context into inherited effects. A known `withContext` can therefore produce an `IO` badge even when the incoming context is unknown. Ordinary execution after the call retains the caller's context.
 
@@ -31,7 +31,7 @@ Analysis always runs automatically after project import and saved source changes
 | Closed function called from Main and IO | `called within Dispatcher Main \| IO` above its declaration |
 | No project code call | No declaration badge |
 | Project call exists but its dispatcher is unresolved | `called within Dispatcher Unknown` |
-| Known Main caller plus unresolved entry paths | `called within Dispatcher Main \| Unknown` |
+| Known Main caller plus unresolved project entry paths | `called within Dispatcher Main \| Unknown` |
 | Known IO work plus unresolved work | `Dispatcher IO \| Unknown`; tooltip: coverage unknown |
 | Callee inherits a known Main context | `Dispatcher Main` at the call |
 | Callee's complete workload is inside `withContext(Dispatchers.IO)` | `Dispatcher IO` at the call |
