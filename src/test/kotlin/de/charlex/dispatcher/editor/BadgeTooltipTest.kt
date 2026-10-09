@@ -5,8 +5,9 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import de.charlex.dispatcher.model.Dispatcher
 import de.charlex.dispatcher.model.DispatcherSet
 import de.charlex.dispatcher.model.EffectSummary
-import java.awt.image.BufferedImage
 import javax.swing.JEditorPane
+import javax.swing.text.GlyphView
+import javax.swing.text.View
 
 class BadgeTooltipTest : BasePlatformTestCase() {
     fun testSingleAndMixedIncomingContextsRenderWithThemeColors() {
@@ -107,13 +108,18 @@ class BadgeTooltipTest : BasePlatformTestCase() {
     private fun text(pane: JEditorPane) = pane.document.getText(0, pane.document.length).trim()
 
     private fun assertColor(pane: JEditorPane, label: String, color: BadgeColor, dark: Boolean) {
-        assertTrue("Missing tooltip label: $label", text(pane).contains(label))
-        val image = BufferedImage(pane.width, pane.height, BufferedImage.TYPE_INT_ARGB)
-        val graphics = image.createGraphics()
-        try { pane.paint(graphics) } finally { graphics.dispose() }
-        val expected = color.color(dark).rgb
-        assertTrue("Missing rendered color for $label", (0 until image.width).any { x ->
-            (0 until image.height).any { y -> image.getRGB(x, y) == expected }
-        })
+        val start = pane.document.getText(0, pane.document.length).indexOf(label)
+        assertTrue("Missing tooltip label: $label", start >= 0)
+        val root = pane.ui.getRootView(pane)
+        root.setSize(pane.width.toFloat(), pane.height.toFloat())
+        fun glyphs(view: View): List<GlyphView> = if (view is GlyphView) listOf(view) else
+            (0 until view.viewCount).flatMap { glyphs(view.getView(it)) }
+        val rendered = glyphs(root)
+        // Check the renderer's color before platform-specific font antialiasing blends pixels.
+        for (offset in start until start + label.length) {
+            val glyph = rendered.firstOrNull { offset in it.startOffset until it.endOffset }
+            assertNotNull("Missing rendered text for $label at $offset", glyph)
+            assertEquals("Wrong rendered color for $label at $offset", color.color(dark), glyph!!.foreground)
+        }
     }
 }
