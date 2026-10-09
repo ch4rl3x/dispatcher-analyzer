@@ -6,9 +6,11 @@
 
 **Call site:** possible dispatcher contexts for executable work in the resolved callee, substituting this call's context into inherited effects. A known `withContext` can therefore produce an `IO` badge even when the incoming context is unknown. Ordinary execution after the call retains the caller's context.
 
-Calls inside an unused function still receive call-site badges when enabled. For example, an uncalled `externallyCallableWork` has no declaration badge, while its `delay(1)` call displays `Dispatcher Unknown` because the inherited dispatcher is unresolved. A callable reference alone does not create a declaration badge; when actual calls also exist, escaping references can add uncertainty.
+Calls inside an unused function still receive call-site badges when enabled. For example, an uncalled `externallyCallableWork` has no declaration badge, while its `delay(1)` call displays `Dispatcher.Unknown` because the inherited dispatcher is unresolved. A callable reference alone does not create a declaration badge; when actual calls also exist, escaping references can add uncertainty.
 
-Declaration badges begin with `called within Dispatcher `; call-site badges begin with `Dispatcher `. The prefix is neutral; each dispatcher retains its own color.
+Declaration and call-site badges begin with `Dispatcher.`. The prefix is neutral; each dispatcher retains its own color.
+
+Declaration tooltips begin with a function-specific sentence such as "This function is called from Dispatcher Main and IO." Names follow badge order, use the same palette adapted to the tooltip background, and retain gray Unknown when evidence is missing or outdated. Existing uncertainty and analysis-status explanations remain below the sentence. Custom labels and diagnostic text are escaped before HTML rendering; tooltips contain no navigation links. Call-site tooltips say "This function switches to Dispatcher IO." and list explicit synchronous selections, excluding inherited contexts. Calls without a proven dispatcher selection say "This function runs on Dispatcher Main." and list execution contexts instead. Both descriptions are generated from the current summary, including summaries restored from cache.
 
 Call-site badges appear immediately after the call's argument list. For trailing lambdas, place the badge before the lambda, never after its closing brace. If parentheses are omitted, anchor after the callee name or its explicit type arguments. Calls inside the lambda retain their own badges; declaration badges remain above functions.
 
@@ -22,20 +24,20 @@ An optional **Only in the function containing the caret** setting is off by defa
 
 The filtered call-site mode tracks synchronous dispatcher selections inside the callee separately from execution contexts. A supported synchronous callee that performs a `withContext` dispatcher switch qualifies; direct standard-dispatcher calls still follow the redundancy rule above. `delay` merely inherits its caller's dispatcher and does not qualify. Explicit unresolved dispatcher values remain visible with Unknown. `NonCancellable` or `CoroutineName` alone does not select a dispatcher, and dispatcher choices confined to asynchronous child bodies do not qualify the parent. Pending results cannot establish dispatcher selection and are omitted in filtered mode.
 
-Within a qualifying badge, show only dispatcher identities explicitly selected by the synchronous callee or its synchronous callees. Omit inherited entries, even when they contribute workload. Track selection identities and origins separately from the complete execution summary; selecting the same identity as the caller still counts. Compute `(partial)` from the complete workload before filtering, so Main work followed by an IO switch displays only `Dispatcher IO (partial)` in this mode. Navigation uses only the selected identity's origins. Preserve Unknown for unresolved selections or uncertain work inside a selected region; an unknown incoming context alone is not a selection.
+Within a qualifying badge, show only dispatcher identities explicitly selected by the synchronous callee or its synchronous callees. Omit inherited entries, even when they contribute workload. Track selection identities and origins separately from the complete execution summary; selecting the same identity as the caller still counts. Compute `(partial)` from the complete workload before filtering, so Main work followed by an IO switch displays only `Dispatcher.IO (partial)` in this mode. Navigation uses only the selected identity's origins. Preserve Unknown for unresolved selections or uncertain work inside a selected region; an unknown incoming context alone is not a selection.
 
 Analysis always runs automatically after project import and saved source changes, including IDE autosave. There is no manual mode or analysis side panel. The editor toolbar’s Reanalyze dispatcher usage in file action saves the current document and forces its graph and affected dependencies to be regenerated, even when its content hash is unchanged. Typing cancels superseded work and invalidates results without starting analysis. Outdated results with previously established call evidence are gray Unknown while their file remains unchanged; edited or unanalyzed positions are omitted until a current snapshot is available.
 
 | Situation | Badge |
 | --- | --- |
-| Closed function called from Main and IO | `called within Dispatcher Main \| IO` above its declaration |
+| Closed function called from Main and IO | `Dispatcher.Main \| IO` above its declaration |
 | No project code call | No declaration badge |
-| Project call exists but its dispatcher is unresolved | `called within Dispatcher Unknown` |
-| Known Main caller plus unresolved project entry paths | `called within Dispatcher Main \| Unknown` |
-| Known IO work plus unresolved work | `Dispatcher IO \| Unknown`; tooltip: coverage unknown |
-| Callee inherits a known Main context | `Dispatcher Main` at the call |
-| Callee's complete workload is inside `withContext(Dispatchers.IO)` | `Dispatcher IO` at the call |
-| Main caller; callee does work on Main and inside `withContext(Dispatchers.IO)` | All calls: `Dispatcher Main (partial) \| IO (partial)`; filtered: `Dispatcher IO (partial)` |
+| Project call exists but its dispatcher is unresolved | `Dispatcher.Unknown` |
+| Known Main caller plus unresolved project entry paths | `Dispatcher.Main \| Unknown` |
+| Known IO work plus unresolved work | `Dispatcher.IO \| Unknown`; tooltip: coverage unknown |
+| Callee inherits a known Main context | `Dispatcher.Main` at the call |
+| Callee's complete workload is inside `withContext(Dispatchers.IO)` | `Dispatcher.IO` at the call |
+| Main caller; callee does work on Main and inside `withContext(Dispatchers.IO)` | All calls: `Dispatcher.Main (partial) \| IO (partial)`; filtered: `Dispatcher.IO (partial)` |
 
 `(partial)` belongs to an individual known dispatcher: some analyzed workload can execute there and some can execute elsewhere. It is not a percentage. Missing evidence uses `Unknown`, not `(partial)` as a substitute. Tooltips distinguish alternatives across branches from switches within a path.
 
@@ -51,11 +53,11 @@ Count side-effecting argument/context evaluation, conditions, nested calls, and 
 | Unknown or analysis problem | Gray |
 | Other identified dispatchers: Unconfined, custom or library-provided dispatchers | Purple |
 
-Apply the same palette at declarations and calls. Color each dispatcher entry independently: `Dispatcher Main | IO` has red Main and yellow IO, with a neutral prefix and separator. `(partial)` keeps the associated dispatcher's color. Use theme-aware shades with readable contrast; keep labels and explanations available without relying on color.
+Apply the same palette at declarations and calls. Color each dispatcher entry independently: `Dispatcher.Main | IO` has red Main and yellow IO, with a neutral prefix and separator. `(partial)` keeps the associated dispatcher's color. Use theme-aware shades with readable contrast; keep labels and explanations available without relying on color.
 
 Represent analysis failures with gray `Unknown` and an explanatory tooltip. Keep independently valid known entries colored; if a failure invalidates the whole result, replace stale entries with gray `Unknown`.
 
-An identified custom dispatcher can use a label such as `Dispatcher Custom(MyDispatcher)` or `Dispatcher Room(query executor)` when a verified library summary establishes that identity. A Room API name alone is insufficient. Proven standard dispatchers retain their standard label/color even when supplied through a library; unresolved custom values stay gray. General user-configurable mappings remain later work.
+An identified custom dispatcher can use a label such as `Dispatcher.Custom(MyDispatcher)` or `Dispatcher.Room(query executor)` when a verified library summary establishes that identity. A Room API name alone is insufficient. Proven standard dispatchers retain their standard label/color even when supplied through a library; unresolved custom values stay gray. General user-configurable mappings remain later work.
 
 ## Model and transfer rules
 

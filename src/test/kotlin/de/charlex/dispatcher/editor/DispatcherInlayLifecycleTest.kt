@@ -85,6 +85,13 @@ class DispatcherInlayLifecycleTest : BasePlatformTestCase() {
             val declarationCount = editor.inlayModel.getBlockElementsInRange(0, source.length).size
             assertTrue("Called suspend functions retain declaration badges", declarationCount >= 2)
             assertEquals(source, editor.document.text)
+            fun declarationTooltip(): String = ReadAction.compute<String, RuntimeException> {
+                val badge = analysis.requestAnalysis(file).declarations.getValue(source.indexOf("private suspend fun readFromDisk"))
+                BadgeTooltip.create(badge.summary, badge.tooltip, declaration = true, darkTheme = false)
+            }
+            val initialTooltip = declarationTooltip()
+            assertTrue(initialTooltip.contains(">IO</span>"))
+            assertFalse(initialTooltip.contains(">Main</span>"))
 
             settings.updateCalls(CallSiteBadgeMode.DISPATCHER_CHANGES)
             myFixture.doHighlighting()
@@ -139,6 +146,9 @@ class DispatcherInlayLifecycleTest : BasePlatformTestCase() {
             assertTrue(BadgePresentation.segments(revisedCallerSummary, false, true).single().partial)
             assertEquals(declarationCount, editor.inlayModel.getBlockElementsInRange(0, revised.length).size)
             assertEquals(revised, editor.document.text)
+            val revisedTooltip = declarationTooltip()
+            assertTrue(revisedTooltip.contains(">Default</span>"))
+            assertFalse(revisedTooltip.contains(">IO</span>"))
 
             editor.caretModel.moveToOffset(revised.indexOf("delay(1)"))
             myFixture.doHighlighting()
@@ -300,7 +310,7 @@ class DispatcherInlayLifecycleTest : BasePlatformTestCase() {
                 CodeStyleManager.getInstance(project).reformat(file)
             }
             assertNotEquals(beforeReformat, editor.document.text)
-            assertFalse(editor.document.text.contains("called within Dispatcher "))
+            assertFalse(editor.document.text.contains("Dispatcher."))
             myFixture.performEditorAction(IdeActions.ACTION_UNDO)
             assertEquals(source, editor.document.text)
 

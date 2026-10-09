@@ -1,5 +1,6 @@
 package de.charlex.dispatcher.editor
 
+import com.intellij.codeInsight.hint.HintUtil
 import com.intellij.codeInsight.hints.InlayHintsSink
 import com.intellij.codeInsight.hints.presentation.InlayPresentation
 import com.intellij.codeInsight.hints.presentation.MouseButton
@@ -54,8 +55,7 @@ internal object BadgePresentation {
         dispatcherChangesOnly: Boolean = false,
     ): InlayPresentation {
         val dark = ColorUtil.isDark(editor.colorsScheme.defaultBackground)
-        val prefix = if (declaration) "called within Dispatcher " else "Dispatcher "
-        val parts = mutableListOf(factory.smallTextWithoutBackground(prefix))
+        val parts = mutableListOf(factory.smallTextWithoutBackground("Dispatcher."))
         val evidence = if (!declaration && dispatcherChangesOnly) summary.selectedDispatchers else summary.dispatchers
         segments(summary, declaration, dispatcherChangesOnly).forEachIndexed { index, segment ->
             if (index > 0) parts += factory.smallTextWithoutBackground(" | ")
@@ -89,7 +89,10 @@ internal object BadgePresentation {
             }
         }
         val badge = factory.roundWithBackgroundAndSmallInset(factory.seq(*parts.toTypedArray()))
-        return factory.withTooltip(tooltip, badge)
+        val description = BadgeTooltip.create(
+            summary, tooltip, declaration, ColorUtil.isDark(HintUtil.getInformationColor()),
+        )
+        return factory.withTooltip(description, badge)
     }
 
     fun render(

@@ -6,8 +6,8 @@
 
 Android Studio plugin for understanding dispatcher usage in Kotlin `suspend` functions.
 
-- **Above declarations:** editor-only badges such as `called within Dispatcher Main` or `called within Dispatcher Main | IO`, inferred from incoming calls. Functions without project code calls receive no declaration badge; documentation references do not count.
-- **At call sites:** badges describing the callee's execution, including internal `withContext` switches and `(partial)` coverage.
+- **Above declarations:** editor-only badges such as `Dispatcher.Main` or `Dispatcher.Main | IO`, inferred from incoming calls. Hover for a function-specific explanation with colored dispatcher names. Functions without project code calls receive no declaration badge; documentation references do not count.
+- **At call sites:** badges describing the callee's execution, including internal `withContext` switches and `(partial)` coverage. Tooltips name explicit dispatcher switches, or execution contexts for calls that only inherit their context.
 - **Settings:** choose all call-site badges, only calls that set a dispatcher (default), or no call-site badges. Declaration badges have no plugin-specific off switch. Suspend expect declarations and calls are excluded.
 - **Unknown:** unresolved contexts remain visible, including alongside known dispatchers.
 - **Colors:** Main red, Default green, IO yellow, Unknown/analysis problems gray, and other identified dispatchers (including custom/library dispatchers) purple. Mixed badges color each dispatcher separately; text stays readable in light and dark themes.

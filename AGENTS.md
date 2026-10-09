@@ -31,7 +31,7 @@
 - Badges are editor tooling only. Never add annotations, comments, or lines to the user's source.
 - Provide declaration badges only when project code contains a call to the function; do not add a plugin-specific visibility switch. Documentation references and public visibility alone do not count as calls. Call-site badges use a dropdown for all calls, dispatcher-setting calls only (default), or none. Preserve explicit legacy preferences. An optional checkbox limits call badges to the function containing the caret; it is disabled when call badges are hidden. Exclude suspend expect declarations and their calls.
 - Keep incoming contexts separate from callee execution effects. Preserve `Unknown`; never infer thread safety from a badge.
-- Prefix declaration badges with `called within Dispatcher ` and call-site badges with `Dispatcher `.
+- Prefix declaration and call-site badges with `Dispatcher.`. Tooltips use individually colored dispatcher names: declarations describe incoming contexts; calls describe explicit switches, or execution contexts when no switch is proven.
 - Make only colored dispatcher names navigate to their own source evidence. Multiple origins for the same dispatcher use a chooser. Unknown and stale results never navigate.
 - Follow the documented `(partial)` rule. Do not count asynchronous child bodies as synchronous parent work.
 - Resolve coroutine APIs by symbol identity. Unsupported or dynamic constructs must remain explicitly uncertain.

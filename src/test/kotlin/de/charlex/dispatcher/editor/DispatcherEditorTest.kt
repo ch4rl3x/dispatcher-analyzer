@@ -50,8 +50,8 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         assertEquals(listOf(0), sink.blocks.map { it.offset })
         assertTrue(sink.blocks.single().above)
         assertEquals(listOf(end), sink.inline.map { it.offset })
-        assertEquals("called within Dispatcher Main", sink.blocks.single().text.trim())
-        assertEquals("Dispatcher IO", sink.inline.single().text.trim())
+        assertEquals("Dispatcher.Main", sink.blocks.single().text.trim())
+        assertEquals("Dispatcher.IO", sink.inline.single().text.trim())
         assertEquals(source, myFixture.editor.document.text)
         assertEquals(2, myFixture.editor.document.lineCount)
     }
@@ -82,7 +82,7 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         val sink = RecordingSink()
         render(FileAnalysis(calls = mapOf(offset to unknown)), DispatcherHintSettings(showCalls = true), sink)
         assertTrue(sink.blocks.isEmpty())
-        assertEquals("Dispatcher Unknown", sink.inline.single().text.trim())
+        assertEquals("Dispatcher.Unknown", sink.inline.single().text.trim())
         assertEquals(source, myFixture.editor.document.text)
     }
 
@@ -155,11 +155,11 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         )
         val all = RecordingSink()
         render(result, DispatcherHintSettings(callSiteMode = CallSiteBadgeMode.ALL), all)
-        assertEquals("Dispatcher Main (partial) | IO (partial)", all.inline.single().text.trim())
+        assertEquals("Dispatcher.Main (partial) | IO (partial)", all.inline.single().text.trim())
         val filtered = RecordingSink()
         render(result, DispatcherHintSettings(callSiteMode = CallSiteBadgeMode.DISPATCHER_CHANGES), filtered)
         assertEquals(listOf(offset), filtered.inline.map { it.offset })
-        assertEquals("Dispatcher IO (partial)", filtered.inline.single().text.trim())
+        assertEquals("Dispatcher.IO (partial)", filtered.inline.single().text.trim())
         assertEquals(all.blocks, filtered.blocks)
         assertEquals(source, myFixture.editor.document.text)
 
@@ -174,7 +174,7 @@ class DispatcherEditorTest : BasePlatformTestCase() {
             },
             dispatcherChangesOnly = true,
         )
-        val prefixWidth = factory.smallTextWithoutBackground("Dispatcher ").width
+        val prefixWidth = factory.smallTextWithoutBackground("Dispatcher.").width
         val ioWidth = factory.smallTextWithoutBackground("IO").width
         clickAt(presentation, 3 + prefixWidth + ioWidth / 2, moveFirst = false)
         assertEquals(listOf(selectedOrigin), navigated)
@@ -359,11 +359,11 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         val presentation = BadgePresentation.create(
             PresentationFactory(myFixture.editor), myFixture.editor, summary, "Mixed dispatchers.", false,
         )
-        assertEquals("Dispatcher Main (partial) | IO (partial) | Unknown", textOf(presentation))
+        assertEquals("Dispatcher.Main (partial) | IO (partial) | Unknown", textOf(presentation))
         val declaration = BadgePresentation.create(
             PresentationFactory(myFixture.editor), myFixture.editor, summary, "Mixed dispatchers.", true,
         )
-        assertEquals("called within Dispatcher Main | IO | Unknown", textOf(declaration))
+        assertEquals("Dispatcher.Main | IO | Unknown", textOf(declaration))
         val dark = ColorUtil.isDark(myFixture.editor.colorsScheme.defaultBackground)
         val expectedColors = listOf(
             "Main" to BadgeColor.MAIN.color(dark),
@@ -383,7 +383,7 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         assertEquals(expectedColors, coloredEntries(declaration))
     }
 
-    fun testUnknownDeclarationUsesIncomingContextWording() {
+    fun testUnknownDeclarationUsesTheSharedBadgePrefix() {
         myFixture.configureByText("Badge.kt", "suspend fun load() {}")
         val presentation = BadgePresentation.create(
             PresentationFactory(myFixture.editor),
@@ -392,7 +392,7 @@ class DispatcherEditorTest : BasePlatformTestCase() {
             "No dispatcher evidence.",
             true,
         )
-        assertEquals("called within Dispatcher Unknown", textOf(presentation))
+        assertEquals("Dispatcher.Unknown", textOf(presentation))
         val dark = ColorUtil.isDark(myFixture.editor.colorsScheme.defaultBackground)
         assertEquals(listOf("Unknown" to BadgeColor.UNKNOWN.color(dark)), coloredEntries(presentation))
     }
@@ -430,7 +430,7 @@ class DispatcherEditorTest : BasePlatformTestCase() {
             },
         )
         val leftInset = 3
-        val prefixWidth = factory.smallTextWithoutBackground("Dispatcher ").width
+        val prefixWidth = factory.smallTextWithoutBackground("Dispatcher.").width
         val mainWidth = factory.smallTextWithoutBackground("Main").width
         val partialWidth = factory.smallTextWithoutBackground(" (partial)").width
         val separatorWidth = factory.smallTextWithoutBackground(" | ").width
@@ -533,7 +533,7 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         val platformRoot = RecursivelyUpdatingRootPresentation(oldPresentation)
         assertTrue(platformRoot.update(refreshedPresentation, myFixture.editor, factory))
 
-        val prefixWidth = factory.smallTextWithoutBackground("Dispatcher ").width
+        val prefixWidth = factory.smallTextWithoutBackground("Dispatcher.").width
         val ioWidth = factory.smallTextWithoutBackground("IO").width
         clickAt(platformRoot, 3 + prefixWidth + ioWidth / 2, moveFirst = false)
         assertEquals(newOrigins, chooserOrigins)
