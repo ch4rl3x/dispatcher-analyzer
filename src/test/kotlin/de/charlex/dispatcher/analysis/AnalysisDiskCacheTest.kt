@@ -39,6 +39,22 @@ class AnalysisDiskCacheTest {
     }
 
     @Test
+    fun cachesWithoutNonSuspendIncomingContextsAreDiscarded() = runBlocking {
+        val projectDirectory = Files.createTempDirectory("dispatcher-cache-legacy-functions")
+        try {
+            val cache = AnalysisDiskCache(projectDirectory)
+            val expected = sampleAnalysis()
+            cache.save(expected)
+            val payload = Files.readAllBytes(cache.path).dropLast(32).toByteArray()
+            ByteBuffer.wrap(payload).putInt(4, 5)
+            Files.write(cache.path, payload + MessageDigest.getInstance("SHA-256").digest(payload))
+            assertNull(cache.load(expected.environmentFingerprint))
+        } finally {
+            projectDirectory.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun missingTruncatedAndTrailingDataAreCacheMisses() = runBlocking {
         val projectDirectory = Files.createTempDirectory("dispatcher-cache-corrupt")
         try {
@@ -223,14 +239,15 @@ class AnalysisDiskCacheTest {
             contentHash = "source-content-hash",
             structureHash = "declaration-shape-hash",
             dependencies = setOf("library:coroutines:1", "module:app"),
-            functions = listOf(FunctionBody(worker, "worker", effect)),
-            calls = listOf(SourceCall(worker.file, 42, worker, worker, incoming, effect)),
+            functions = listOf(FunctionBody(worker, "worker", effect, isSuspend = false)),
+            calls = listOf(SourceCall(worker.file, 42, worker, worker, incoming, effect, showBadge = false)),
             unresolvedNames = setOf("customScope"),
             escapingTargets = setOf(worker),
         )
         val result = FileAnalysis(
             declarations = mapOf(11 to BadgeResult(selected, "Verified dispatcher selection")),
             calls = mapOf(42 to BadgeResult(EffectSummary(incoming), "Incoming context")),
+            nonSuspendDeclarations = mapOf(50 to BadgeResult(EffectSummary(incoming), "Helper context")),
         )
         return CachedProjectAnalysis(
             environmentFingerprint = "environment-v1",

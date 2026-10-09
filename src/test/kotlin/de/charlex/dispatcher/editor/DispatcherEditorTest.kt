@@ -65,6 +65,31 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         }
     }
 
+    fun testNonSuspendDeclarationOptInPreservesPositionsAndCallSettings() {
+        val source = "suspend fun load() {}\nfun parse() = 42\nsuspend fun entry() { load(); parse() }"
+        myFixture.configureByText("Badge.kt", source)
+        val offset = source.indexOf("fun parse")
+        val result = FileAnalysis(
+            declarations = mapOf(0 to badge(Dispatcher.Main)),
+            nonSuspendDeclarations = mapOf(offset to badge(Dispatcher.IO)),
+        )
+        val disabled = RecordingSink()
+        render(result, DispatcherHintSettings(), disabled)
+        assertEquals(listOf(0), disabled.blocks.map { it.offset })
+        for (mode in CallSiteBadgeMode.entries) {
+            val enabled = RecordingSink()
+            render(result, DispatcherHintSettings(
+                callSiteMode = mode, onlyInFunctionContainingCaret = true, showNonSuspendDeclarations = true,
+            ), enabled, emptySet())
+            assertEquals(listOf(0, offset), enabled.blocks.map { it.offset })
+            assertTrue(enabled.blocks.all { it.above })
+            assertEquals("Dispatcher.IO", enabled.blocks.last().text.trim())
+            assertTrue(enabled.inline.isEmpty())
+        }
+        assertEquals(source, myFixture.editor.document.text)
+        assertEquals(3, myFixture.editor.document.lineCount)
+    }
+
     fun testDeclarationAndCallPositionsPreserveDocument() {
         val source = "suspend fun load() {}\nsuspend fun refresh() { load() }"
         myFixture.configureByText("Badge.kt", source)
@@ -292,10 +317,13 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         try {
             settings.loadState(DispatcherHintSettings())
             val component = configurable.createComponent() as JPanel
-            val callSiteRow = component.getComponent(0) as JPanel
+            val nonSuspend = component.getComponent(0) as JCheckBox
+            val callSiteRow = component.getComponent(1) as JPanel
             val selector = callSiteRow.getComponent(1) as JComboBox<*>
-            val onlyFunction = component.getComponent(1) as JCheckBox
-            assertEquals(2, component.componentCount)
+            val onlyFunction = component.getComponent(2) as JCheckBox
+            assertEquals(3, component.componentCount)
+            assertEquals("Show badges above non-suspend functions", nonSuspend.text)
+            assertFalse(nonSuspend.isSelected)
             assertEquals(CallSiteBadgeMode.DISPATCHER_CHANGES, selector.selectedItem)
             assertFalse(onlyFunction.isSelected)
             assertTrue(onlyFunction.isEnabled)
@@ -303,6 +331,16 @@ class DispatcherEditorTest : BasePlatformTestCase() {
                 listOf("All calls", "Only calls that set a dispatcher", "Do not show"),
                 CallSiteBadgeMode.entries.map { it.displayName },
             )
+            assertFalse(configurable.isModified())
+            nonSuspend.isSelected = true
+            assertTrue(configurable.isModified())
+            configurable.apply()
+            assertTrue(settings.showNonSuspendDeclarations)
+            val serialized = XmlSerializer.serialize(settings.getState())
+            val persisted = DispatcherSettings().apply {
+                loadState(XmlSerializer.deserialize(serialized, DispatcherHintSettings::class.java))
+            }
+            assertTrue(persisted.showNonSuspendDeclarations)
             assertFalse(configurable.isModified())
             selector.selectedItem = CallSiteBadgeMode.ALL
             assertTrue(configurable.isModified())
@@ -325,12 +363,19 @@ class DispatcherEditorTest : BasePlatformTestCase() {
             configurable.apply()
             assertEquals(CallSiteBadgeMode.NONE, settings.callSiteMode)
             assertTrue(settings.onlyInFunctionContainingCaret)
+            assertTrue(settings.showNonSuspendDeclarations)
+            assertTrue(nonSuspend.isEnabled)
+            nonSuspend.isSelected = false
             selector.selectedItem = CallSiteBadgeMode.DISPATCHER_CHANGES
             configurable.reset()
+            assertTrue(nonSuspend.isSelected)
             assertEquals(CallSiteBadgeMode.NONE, selector.selectedItem)
             assertTrue(onlyFunction.isSelected)
             assertFalse(onlyFunction.isEnabled)
             assertFalse(configurable.isModified())
+            nonSuspend.isSelected = false
+            configurable.apply()
+            assertFalse(settings.showNonSuspendDeclarations)
         } finally {
             settings.loadState(saved)
             configurable.disposeUIResources()
@@ -346,6 +391,7 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         assertEquals(true, legacyState.showCalls)
         assertNull(legacyState.callSiteMode)
         settings.loadState(legacyState)
+        assertFalse(settings.showNonSuspendDeclarations)
         assertEquals(CallSiteBadgeMode.ALL, settings.callSiteMode)
         assertEquals(CallSiteBadgeMode.ALL, settings.getState().callSiteMode)
 

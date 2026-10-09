@@ -4,6 +4,7 @@ data class DispatcherHintSettings(
     var showCalls: Boolean? = null,
     var callSiteMode: CallSiteBadgeMode? = null,
     var onlyInFunctionContainingCaret: Boolean = false,
+    var showNonSuspendDeclarations: Boolean = false,
 )
 
 enum class CallSiteBadgeMode(val displayName: String) {

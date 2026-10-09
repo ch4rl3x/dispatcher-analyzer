@@ -133,6 +133,7 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
             writeFunctionKey(body.key)
             writeNullableString(body.name)
             writeEffect(body.effect)
+            output.writeBoolean(body.isSuspend)
         }
 
         private fun writeSourceCall(call: SourceCall) {
@@ -142,6 +143,7 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
             writeNullableFunctionKey(call.target)
             writeDispatcherSet(call.context)
             writeEffect(call.effect)
+            output.writeBoolean(call.showBadge)
         }
 
         private fun writeEffect(effect: Effect) {
@@ -208,6 +210,10 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
                 writeBadgeResult(badge)
             }
             writeMap(result.calls, compareBy { it }) { offset, badge ->
+                output.writeInt(offset)
+                writeBadgeResult(badge)
+            }
+            writeMap(result.nonSuspendDeclarations, compareBy { it }) { offset, badge ->
                 output.writeInt(offset)
                 writeBadgeResult(badge)
             }
@@ -298,6 +304,7 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
             key = readFunctionKey(),
             name = readNullableString(),
             effect = readEffect(),
+            isSuspend = input.readBoolean(),
         )
 
         private fun readSourceCall() = SourceCall(
@@ -307,6 +314,7 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
             target = readNullableFunctionKey(),
             context = readDispatcherSet(),
             effect = readEffect(),
+            showBadge = input.readBoolean(),
         )
 
         private fun readEffect(): Effect {
@@ -386,6 +394,7 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
         private fun readFileAnalysis() = FileAnalysis(
             declarations = readMap { readNonNegativeInt() to readBadgeResult() },
             calls = readMap { readNonNegativeInt() to readBadgeResult() },
+            nonSuspendDeclarations = readMap { readNonNegativeInt() to readBadgeResult() },
         )
 
         private fun readBadgeResult() = BadgeResult(readSummary(), readString())
@@ -486,7 +495,7 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
 
     companion object {
         private const val MAGIC = 0x44414E41
-        private const val VERSION = 5
+        private const val VERSION = 6
         private const val IO_CHUNK_SIZE = 16 * 1024
         private const val DIGEST_LENGTH = 32
 

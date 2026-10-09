@@ -9,6 +9,8 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
 
+private fun normalizeName(value: String): String = value.trim()
+
 private suspend fun readFromDisk() {
     delay(1)
 }
@@ -39,6 +41,7 @@ private suspend fun databaseWork() = withContext(databaseDispatcher) {
 
 fun launchExamples(scope: CoroutineScope, injected: CoroutineDispatcher) {
     scope.launch(Dispatchers.Main) {
+        normalizeName(" main ")
         externallyCallableWork()
         ioWrapper()
         mixedWorkload()
@@ -46,6 +49,7 @@ fun launchExamples(scope: CoroutineScope, injected: CoroutineDispatcher) {
         databaseWork()
     }
     scope.launch(Dispatchers.Default) {
+        normalizeName(" default ")
         ioWrapper()
     }
 }

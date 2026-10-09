@@ -98,6 +98,27 @@ class IncrementalAnalysisTest : BasePlatformTestCase() {
         assertEquals(setOf(changed.virtualFile.url, unrelated.virtualFile.url), analysis.lastResolvedFiles)
     }
 
+    fun testCallerEditRecomputesTransitiveNonSuspendIncomingContexts() {
+        val helper = file("Helper.kt", "fun parse(): Int = 42")
+        val bridge = file("Bridge.kt", "fun bridge(): Int = parse()")
+        val entry = file("Entry.kt", "fun start() { CoroutineScope(Dispatchers.Main).launch { bridge() } }")
+        val unrelated = file("Unrelated.kt", "fun unused(): Int = 1")
+        val first = analyze(helper).nonSuspendDeclarations.values.single().summary.dispatchers
+        assertEquals(setOf(Dispatcher.Main), first.known)
+        assertFalse(first.hasUnknown)
+        val unchanged = analyze(unrelated)
+        replace(entry, entry.text.replace("Dispatchers.Main", "Dispatchers.IO"))
+        for (file in listOf(helper, bridge)) {
+            val incoming = analyze(file).nonSuspendDeclarations.values.single().summary.dispatchers
+            assertEquals(setOf(Dispatcher.IO), incoming.known)
+            assertFalse(incoming.hasUnknown)
+            assertEquals(setOf(entry.text.indexOf("Dispatchers.IO")),
+                incoming.origins.getValue(Dispatcher.IO).map { it.offset }.toSet())
+        }
+        assertEquals(setOf(entry.virtualFile.url), analysis.lastResolvedFiles)
+        assertSame(unchanged, analyze(unrelated))
+    }
+
     fun testInferredReturnTypeChangeTriggersStructuralRebuild() {
         val changed = file("Changed.kt", "suspend fun load() = 42")
         val unrelated = file("Unrelated.kt", "private suspend fun unrelated(): Int = 1")
