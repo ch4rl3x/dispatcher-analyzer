@@ -3,6 +3,9 @@
     <depends>com.intellij.java</depends>
     <depends>org.jetbrains.kotlin</depends>
     <extensions defaultExtensionNs="com.intellij">
+        <colorSettingsPage implementation="de.charlex.dispatcher.editor.DispatcherColorSettingsPage"/>
+        <additionalTextAttributes scheme="Default" file="colorSchemes/DispatcherLight.xml"/>
+        <additionalTextAttributes scheme="Darcula" file="colorSchemes/DispatcherDark.xml"/>
         <codeInsight.inlayProvider language="kotlin"
             implementationClass="de.charlex.dispatcher.editor.DispatcherInlayProvider"/>
         <applicationConfigurable parentId="tools" id="dispatcher.analyzer"
@@ -13,6 +16,10 @@
     <extensions defaultExtensionNs="org.jetbrains.kotlin">
         <supportsKotlinPluginMode supportsK1="false" supportsK2="true"/>
     </extensions>
+    <applicationListeners>
+        <listener class="de.charlex.dispatcher.editor.DispatcherColorSchemeListener"
+            topic="com.intellij.openapi.editor.colors.EditorColorsListener"/>
+    </applicationListeners>
     <projectListeners>
         <listener class="de.charlex.dispatcher.editor.DispatcherAnalysisRefreshListener"
             topic="de.charlex.dispatcher.analysis.DispatcherAnalysisListener"/>

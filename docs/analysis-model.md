@@ -12,7 +12,7 @@ Calls inside an unused function still receive call-site badges when enabled. For
 
 Declaration and call-site badges begin with `Dispatcher.`. The prefix is neutral; each dispatcher retains its own color.
 
-Declaration tooltips begin with a function-specific sentence such as "This function is called from Dispatcher Main and IO." Names follow badge order, use the same palette adapted to the tooltip background, and retain gray Unknown when evidence is missing or outdated. Existing uncertainty and analysis-status explanations remain below the sentence. Custom labels and diagnostic text are escaped before HTML rendering; tooltips contain no navigation links. Call-site tooltips say "This function switches to Dispatcher IO." and list explicit synchronous selections, excluding inherited contexts. Calls without a proven dispatcher selection say "This function runs on Dispatcher Main." and list execution contexts instead. Both descriptions are generated from the current summary, including summaries restored from cache.
+Declaration tooltips begin with a function-specific sentence such as "This function is called from Dispatcher Main and IO." Names follow badge order, use the editor color scheme palette, and retain Unknown when evidence is missing or outdated. Existing uncertainty and analysis-status explanations remain below the sentence. Custom labels and diagnostic text are escaped before HTML rendering; tooltips contain no navigation links. Call-site tooltips say "This function switches to Dispatcher IO." and list explicit synchronous selections, excluding inherited contexts. Calls without a proven dispatcher selection say "This function runs on Dispatcher Main." and list execution contexts instead. Both descriptions are generated from the current summary, including summaries restored from cache.
 
 Tooltips omit generic context descriptions and the thread-safety disclaimer. Function-specific descriptions, path explanations, and uncertainty diagnostics remain. Caches with the previous tooltip text are rebuilt.
 
@@ -48,6 +48,8 @@ Analysis always runs automatically after project import and saved source changes
 Count side-effecting argument/context evaluation, conditions, nested calls, and `catch`/`finally` work. Ignore structural entry/return and dispatcher hand-off mechanics, so a pure `withContext(IO) { work() }` wrapper can have complete IO coverage. Full coverage requires all relevant paths and effects to be resolved; unknown work prevents a completeness claim.
 
 ## Badge colors
+
+Settings > Editor > Color Scheme > Dispatcher Analyzer provides foreground color pickers and a preview for Main, Default, IO, Unknown/analysis problems, and other identified dispatchers. Overrides belong to the selected editor scheme and apply to declaration badges, call badges, partial labels, and tooltip names. Applying colors or switching schemes refreshes open editors without reanalysis or source edits. The following palette supplies light/dark defaults; user overrides take precedence.
 
 | Dispatcher or state | Color |
 | --- | --- |

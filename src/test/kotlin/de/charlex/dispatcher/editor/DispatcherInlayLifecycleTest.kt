@@ -168,7 +168,7 @@ class DispatcherInlayLifecycleTest : BasePlatformTestCase() {
             assertEquals(source, editor.document.text)
             fun declarationTooltip(): String = ReadAction.compute<String, RuntimeException> {
                 val badge = analysis.requestAnalysis(file).declarations.getValue(source.indexOf("private suspend fun readFromDisk"))
-                BadgeTooltip.create(badge.summary, badge.tooltip, declaration = true, darkTheme = false)
+                BadgeTooltip.create(badge.summary, badge.tooltip, declaration = true, scheme = editor.colorsScheme)
             }
             val initialTooltip = declarationTooltip()
             assertTrue(initialTooltip.contains(">IO</span>"))

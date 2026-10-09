@@ -1,6 +1,7 @@
 package de.charlex.dispatcher.editor
 
 import com.intellij.codeInsight.hint.HintUtil
+import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import de.charlex.dispatcher.model.Dispatcher
 import de.charlex.dispatcher.model.DispatcherSet
@@ -100,7 +101,10 @@ class BadgeTooltipTest : BasePlatformTestCase() {
         dark: Boolean = false,
         declaration: Boolean = true,
     ): JEditorPane {
-        val html = BadgeTooltip.create(summary, details, declaration, dark)
+        val html = BadgeTooltip.create(
+            summary, details, declaration,
+            requireNotNull(EditorColorsManager.getInstance().getScheme(if (dark) "Darcula" else "Default")),
+        )
         val label = HintUtil.createInformationLabel(html) as HintUtil.HintLabel
         return requireNotNull(label.pane).apply { setSize(900, 200) }
     }

@@ -1,11 +1,12 @@
 package de.charlex.dispatcher.editor
 
+import com.intellij.openapi.editor.colors.EditorColorsScheme
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.ColorUtil
 import de.charlex.dispatcher.model.EffectSummary
 
 internal object BadgeTooltip {
-    fun create(summary: EffectSummary, details: String, declaration: Boolean, darkTheme: Boolean): String = buildString {
+    fun create(summary: EffectSummary, details: String, declaration: Boolean, scheme: EditorColorsScheme): String = buildString {
         val action = when {
             declaration -> "is called from"
             summary.setsDispatcher -> "switches to"
@@ -16,7 +17,7 @@ internal object BadgeTooltip {
         val entries = BadgePresentation.segments(contexts, declaration = true)
         entries.forEachIndexed { index, segment ->
             if (index > 0) append(if (index == entries.lastIndex) " and " else ", ")
-            val color = BadgeColor.forDispatcher(segment.dispatcher).color(darkTheme)
+            val color = BadgeColor.forDispatcher(segment.dispatcher).color(scheme)
             append("<span style=\"color: #${ColorUtil.toHex(color)}\">")
             append(StringUtil.escapeXmlEntities(segment.label))
             append("</span>")
