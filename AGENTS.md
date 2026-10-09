@@ -36,7 +36,7 @@
 - Follow the documented `(partial)` rule. Do not count asynchronous child bodies as synchronous parent work.
 - Resolve coroutine APIs by symbol identity. Unsupported or dynamic constructs must remain explicitly uncertain.
 - Use theme-aware presentation and text labels; color must not carry meaning alone.
-- Preserve the badge palette: Main red, Default green, IO yellow, Unknown/analysis problems gray, other identified dispatchers purple. Color mixed entries separately; `(partial)` keeps its dispatcher's color.
+- Preserve the default badge palette: Main red, Default green, IO yellow, Unknown/analysis problems gray, other identified dispatchers purple. Allow per-scheme foreground overrides under Editor > Color Scheme > Dispatcher Analyzer for badges and tooltips. Color mixed entries separately; `(partial)` keeps its dispatcher's color.
 - Distinguish identified custom/library dispatchers from unresolved values. Show purple only with identity evidence; unknown custom values stay gray. A Room call alone does not establish a dispatcher.
 
 ## Validation

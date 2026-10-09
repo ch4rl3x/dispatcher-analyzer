@@ -1,6 +1,5 @@
 package de.charlex.dispatcher.editor
 
-import com.intellij.codeInsight.hint.HintUtil
 import com.intellij.codeInsight.hints.InlayHintsSink
 import com.intellij.codeInsight.hints.presentation.InlayPresentation
 import com.intellij.codeInsight.hints.presentation.MouseButton
@@ -13,7 +12,6 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFileManager
-import com.intellij.ui.ColorUtil
 import de.charlex.dispatcher.analysis.FileAnalysis
 import de.charlex.dispatcher.model.BadgeSegment
 import de.charlex.dispatcher.model.Dispatcher
@@ -55,13 +53,12 @@ internal object BadgePresentation {
         navigateDispatcher: ((Dispatcher, List<DispatcherOrigin>, () -> Boolean) -> Unit)? = null,
         dispatcherChangesOnly: Boolean = false,
     ): InlayPresentation {
-        val dark = ColorUtil.isDark(editor.colorsScheme.defaultBackground)
         val parts = mutableListOf(factory.smallTextWithoutBackground("Dispatcher."))
         val evidence = if (!declaration && dispatcherChangesOnly) summary.selectedDispatchers else summary.dispatchers
         segments(summary, declaration, dispatcherChangesOnly).forEachIndexed { index, segment ->
             if (index > 0) parts += factory.smallTextWithoutBackground(" | ")
             val color = BadgeColor.forDispatcher(segment.dispatcher)
-            val name = ColoredTextPresentation(factory.smallTextWithoutBackground(segment.label), color.color(dark))
+            val name = ColoredTextPresentation(factory.smallTextWithoutBackground(segment.label), color.color(editor.colorsScheme))
             val dispatcher = segment.dispatcher
             val origins = dispatcher?.let(evidence.origins::get).orEmpty().sortedWith(originOrder)
             if (dispatcher != null && origins.isNotEmpty()) {
@@ -85,13 +82,13 @@ internal object BadgePresentation {
             if (segment.partial) {
                 parts += ColoredTextPresentation(
                     factory.smallTextWithoutBackground(" (partial)"),
-                    color.color(dark),
+                    color.color(editor.colorsScheme),
                 )
             }
         }
         val badge = factory.roundWithBackgroundAndSmallInset(factory.seq(*parts.toTypedArray()))
         val description = BadgeTooltip.create(
-            summary, tooltip, declaration, ColorUtil.isDark(HintUtil.getInformationColor()),
+            summary, tooltip, declaration, editor.colorsScheme,
         )
         return factory.withTooltip(description, badge)
     }

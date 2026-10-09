@@ -4,7 +4,7 @@ Validated on 2026-10-09 with Android Studio Rabbit 1, build `AI-262.9437.185.262
 
 ## Automated checks
 
-- All 156 semantic and IDE tests pass, covering dispatcher identities, incoming contexts, execution effects, scoped Room evidence, source navigation, settings migration, caret filtering, startup/save triggers, incremental dependencies, cache restart/corruption/deletion, cancellation, indexing, incomplete code, and disposal.
+- All 161 semantic and IDE tests pass, covering dispatcher identities, incoming contexts, execution effects, scoped Room evidence, source navigation, settings migration, caret filtering, startup/save triggers, incremental dependencies, cache restart/corruption/deletion, cancellation, indexing, incomplete code, and disposal.
 - Complete-source fixtures cover 1,050 functions, 130 source files, and a 71-function call chain. No project-size or fixed-point-round caps are used.
 - `test`, `buildPlugin`, `verifyPluginProjectConfiguration`, and `verifyPlugin` pass with the pinned IDE. Plugin Verifier reports compatibility without internal API usage. Experimental analysis/editor APIs limit the advertised range to platform 262; the exact build above is the tested target.
 - Editor fixtures check positions, unchanged source and line counts, copy, formatting, undo, zoom, settings, and live caret updates. Suspend expect declarations and calls are excluded.
@@ -21,6 +21,8 @@ A fixture with 100 suspend functions and 200 suspend calls took 289 ms for its f
 Regression thresholds are 30 seconds for initial analysis and 1 second for cached access, allowing slower CI machines. Crossing a threshold fails the test; it never truncates analysis. Source resolution reuses unchanged file graphs and updates affected dependencies after saves. Structural or environment changes can require full analysis. Background work is cancellable and coalesces saves; typing alone does not start analysis. CPU and memory use still grow with project size.
 
 ## Native sandbox checks
+
+The editor color-scheme integration passed all 161 tests, packaging, configuration validation, and Plugin Verifier on 2026-10-09. Tests verify registered foreground pickers and preview mappings, light/dark defaults, scheme persistence and isolation, mixed badge/partial/tooltip colors, and live recoloring of existing declaration and call inlays without source edits or analysis invalidation. The native sandbox started, but UI automation rejected its Java app identity (`Invalid app: net.java.openjdk.java`), so the settings page and picker interaction could not be visually checked. The isolated sandbox was stopped after the attempt.
 
 Declaration badges use a fixed priority immediately above Code Vision usages, placing them closer to the function. The change passed all 156 tests, packaging, project configuration validation, and Plugin Verifier on 2026-10-09 in an isolated checkout excluding concurrent workspace edits. The IDE lifecycle test checks actual block-inlay ordering against a simulated usages inlay at the platform usages priority, alongside settings, saved updates, and unchanged-source assertions. The sandbox started, but UI automation again rejected `net.java.openjdk.java`; native visual ordering remains unverified.
 

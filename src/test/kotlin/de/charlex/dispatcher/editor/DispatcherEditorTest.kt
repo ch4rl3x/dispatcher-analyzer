@@ -35,6 +35,36 @@ import javax.swing.JComboBox
 import javax.swing.JPanel
 
 class DispatcherEditorTest : BasePlatformTestCase() {
+    fun testSchemeOverridesApplyToMixedBadgesPartialLabelsAndTooltips() {
+        val source = "suspend fun load() {}"
+        myFixture.configureByText("Badge.kt", source)
+        val scheme = myFixture.editor.colorsScheme
+        val colors = BadgeColor.entries.associateWith { Color(0x234560 + it.ordinal) }
+        val originals = BadgeColor.entries.associateWith { scheme.getColor(it.key) }
+        try {
+            colors.forEach { (color, value) -> scheme.setColor(color.key, value) }
+            val summary = EffectSummary(DispatcherSet.of(
+                Dispatcher.Main, Dispatcher.IO, Dispatcher.Default, Dispatcher.Unconfined,
+                Dispatcher.Custom("worker", "Worker"),
+            ).join(DispatcherSet.unknown("Missing evidence")))
+            for (declaration in listOf(true, false)) {
+                val presentation = BadgePresentation.create(
+                    PresentationFactory(myFixture.editor), myFixture.editor, summary, "", declaration,
+                )
+                val expected = BadgePresentation.segments(summary, declaration).flatMap { segment ->
+                    val color = colors.getValue(BadgeColor.forDispatcher(segment.dispatcher))
+                    listOf(segment.label to color) + if (segment.partial) listOf(" (partial)" to color) else emptyList()
+                }
+                assertEquals(expected, coloredEntries(presentation))
+                val tooltip = BadgeTooltip.create(summary, "", declaration, scheme)
+                colors.values.forEach { color -> assertTrue(tooltip.contains("#${ColorUtil.toHex(color)}")) }
+            }
+            assertEquals(source, myFixture.editor.document.text)
+        } finally {
+            originals.forEach { (color, value) -> scheme.setColor(color.key, value) }
+        }
+    }
+
     fun testDeclarationAndCallPositionsPreserveDocument() {
         val source = "suspend fun load() {}\nsuspend fun refresh() { load() }"
         myFixture.configureByText("Badge.kt", source)
