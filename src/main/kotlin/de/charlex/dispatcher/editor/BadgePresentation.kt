@@ -5,6 +5,7 @@ import com.intellij.codeInsight.hints.InlayHintsSink
 import com.intellij.codeInsight.hints.presentation.InlayPresentation
 import com.intellij.codeInsight.hints.presentation.MouseButton
 import com.intellij.codeInsight.hints.presentation.PresentationFactory
+import com.intellij.openapi.editor.BlockInlayPriority
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
@@ -119,7 +120,7 @@ internal object BadgePresentation {
                 offset,
                 relatesToPrecedingText = false,
                 showAbove = true,
-                priority = 0,
+                priority = BlockInlayPriority.CODE_VISION_USAGES + 1,
                 presentation = factory.seq(factory.textSpacePlaceholder(indent, false), presentation),
             )
         }

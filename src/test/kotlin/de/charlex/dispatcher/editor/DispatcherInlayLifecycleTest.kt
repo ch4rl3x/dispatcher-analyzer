@@ -6,6 +6,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.service
+import com.intellij.openapi.editor.BlockInlayPriority
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -84,6 +85,21 @@ class DispatcherInlayLifecycleTest : BasePlatformTestCase() {
             }
             val declarationCount = editor.inlayModel.getBlockElementsInRange(0, source.length).size
             assertTrue("Called suspend functions retain declaration badges", declarationCount >= 2)
+            val declarationOffset = source.indexOf("private suspend fun readFromDisk")
+            val declaration = editor.inlayModel.getBlockElementsInRange(declarationOffset, declarationOffset).single()
+            val usages = editor.inlayModel.addBlockElement(
+                declarationOffset, false, true, BlockInlayPriority.CODE_VISION_USAGES, declaration.renderer,
+            )!!
+            try {
+                val line = editor.offsetToVisualPosition(declarationOffset).line
+                assertEquals(
+                    "Dispatcher badges belong between Code Vision usages and the declaration",
+                    listOf(usages, declaration),
+                    editor.inlayModel.getBlockElementsForVisualLine(line, true),
+                )
+            } finally {
+                usages.dispose()
+            }
             assertEquals(source, editor.document.text)
             fun declarationTooltip(): String = ReadAction.compute<String, RuntimeException> {
                 val badge = analysis.requestAnalysis(file).declarations.getValue(source.indexOf("private suspend fun readFromDisk"))

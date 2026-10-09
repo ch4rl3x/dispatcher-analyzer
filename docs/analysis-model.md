@@ -14,7 +14,7 @@ Declaration tooltips begin with a function-specific sentence such as "This funct
 
 Tooltips omit generic context descriptions and the thread-safety disclaimer. Function-specific descriptions, path explanations, and uncertainty diagnostics remain. Caches with the previous tooltip text are rebuilt.
 
-Call-site badges appear immediately after the call's argument list. For trailing lambdas, place the badge before the lambda, never after its closing brace. If parentheses are omitted, anchor after the callee name or its explicit type arguments. Calls inside the lambda retain their own badges; declaration badges remain above functions.
+Call-site badges appear immediately after the call's argument list. For trailing lambdas, place the badge before the lambda, never after its closing brace. If parentheses are omitted, anchor after the callee name or its explicit type arguments. Calls inside the lambda retain their own badges; declaration badges remain above functions, below Code Vision usages when both are anchored to the same visual line. Their fixed priority is one above the platform usages priority.
 
 Omit redundant badges on `withContext` calls whose context directly references a standard dispatcher, including `Dispatchers.Main.immediate` and parenthesized references. Resolve these references by symbol identity, including import aliases. Value aliases and unresolved dispatcher variables retain badges; coroutine builders such as `launch` and `async` have no call badges. This display rule applies in every call-site mode and does not change execution effects, incoming contexts, or badges on ordinary calls to functions that switch dispatchers internally.
 

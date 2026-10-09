@@ -22,6 +22,8 @@ Regression thresholds are 30 seconds for initial analysis and 1 second for cache
 
 ## Native sandbox checks
 
+Declaration badges use a fixed priority immediately above Code Vision usages, placing them closer to the function. The change passed all 156 tests, packaging, project configuration validation, and Plugin Verifier on 2026-10-09 in an isolated checkout excluding concurrent workspace edits. The IDE lifecycle test checks actual block-inlay ordering against a simulated usages inlay at the platform usages priority, alongside settings, saved updates, and unchanged-source assertions. The sandbox started, but UI automation again rejected `net.java.openjdk.java`; native visual ordering remains unverified.
+
 The removal of generic tooltip context sentences and the thread-safety disclaimer passed all 156 tests, packaging, and project configuration validation on 2026-10-09. The cache version was advanced to discard stored descriptions containing the removed text. No native smoke check was repeated for this text-only change; the UI automation limitation below remains.
 
 The unified `Dispatcher.` labels and dynamic colored tooltips passed all 156 tests, packaging, configuration validation, and Plugin Verifier on 2026-10-09. The native visual check remains unverified: the Gradle sandbox started, but UI automation rejected its Java app identity (`Invalid app: net.java.openjdk.java`). The sandbox was stopped after the attempt. Tooltip colors are verified by rendering the IDE information-label component in headless tests.
