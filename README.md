@@ -40,7 +40,7 @@ Open Settings > Tools > Dispatcher Analyzer.
 
 Analysis runs in the background after import and when Kotlin files are saved; there is no side panel or manual mode. Edits make outdated results gray or hide them until saved changes have been analyzed. Declaration badges have no plugin-specific off switch; IDE-wide inlay controls still apply.
 
-Use **Reanalyze file** in the editor’s upper-right toolbar to rebuild the current file’s analysis and affected dependencies. This saves the current document first and leaves automatic analysis enabled.
+Use **Reanalyze dispatcher usage in file** in the editor’s upper-right toolbar to rebuild the current file’s analysis and affected dependencies. This saves the current document first and leaves automatic analysis enabled.
 
 The cache updates changed files and their dependencies. Signature, import, project-root, or library changes can require a full rebuild. The cache is disposable: deleting `build/dispatcher-analyzer/` or running `clean` causes it to be rebuilt.
 

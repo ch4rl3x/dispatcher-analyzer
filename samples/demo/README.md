@@ -4,7 +4,7 @@ Open `samples/demo` as a separate Gradle project in Android Studio after importi
 
 Under Settings > Tools > Dispatcher Analyzer, choose All calls, Only calls that set a dispatcher (default), or Do not show. In the filtered mode, calls to `ioWrapper` and `mixedWorkload` retain their badges while inherited `delay` calls disappear. Optionally enable Only in the function containing the caret to restrict call badges to the current function. Declaration badges have no plugin-specific off switch.
 
-Analysis runs automatically after import and after saving changes, including IDE autosave. Typing invalidates results until the next save. The disposable cache is stored in `build/dispatcher-analyzer/`; there is no analysis side panel. The Reanalyze file icon in the editor toolbar saves and force-refreshes the active file.
+Analysis runs automatically after import and after saving changes, including IDE autosave. Typing invalidates results until the next save. The disposable cache is stored in `build/dispatcher-analyzer/`; there is no analysis side panel. The Reanalyze dispatcher usage in file icon in the editor toolbar saves and force-refreshes the active file.
 
 The pinned wrapper supports `./gradlew classes` with JDK 25. Wait for Android Studio's Gradle import to finish before inspecting badges.
 

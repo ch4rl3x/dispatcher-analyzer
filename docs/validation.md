@@ -21,6 +21,8 @@ Regression thresholds are 30 seconds for initial analysis and 1 second for cache
 
 ## Native sandbox checks
 
+The toolbar wording change passed all 151 tests, plugin packaging, and project configuration validation on 2026-10-09; the packaged descriptor contains the updated label and description. Its native visual check remains unverified: the sandbox started, but UI automation rejected its Java app identity and could not access the window. The sandbox was stopped after the attempt.
+
 The filtered-entry change passed all automated checks on 2026-10-09. Its native visual check remains unverified: the Gradle sandbox started, but the available UI automation rejected its Java app identity and could not access the window. The sandbox was closed after the attempt. The earlier badge-placement visual recheck also remains unverified; the light/dark results below describe the earlier baseline.
 
 The imported demo displays the required mixed palette in [Islands Light](images/dispatcher-light.png) and [Islands Dark](images/dispatcher-dark.png), with no source edits or added source lines.

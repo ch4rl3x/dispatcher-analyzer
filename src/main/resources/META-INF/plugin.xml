@@ -20,8 +20,8 @@
     <actions>
         <action id="de.charlex.dispatcher.editor.ReanalyzeFile"
             class="de.charlex.dispatcher.editor.ReanalyzeFileAction"
-            text="Reanalyze file"
-            description="Rebuild dispatcher analysis for the current file"
+            text="Reanalyze dispatcher usage in file"
+            description="Save the current file and reanalyze dispatcher usage in it and affected dependencies"
             icon="AllIcons.Actions.Refresh">
             <add-to-group group-id="EditorTabsToolbarActions" anchor="last"/>
         </action>
