@@ -47,7 +47,7 @@ internal class ProjectGraphSolver {
         effectsToSolve.forEach { key ->
             val summary = summaries.getValue(key)
             if (summary.dispatchers.isEmpty) summaries[key] = EffectSummary(
-                DispatcherSet.unknown("No executable dispatcher evidence was found"), summary.pathRelations, summary.setsDispatcher,
+                DispatcherSet.unknown("No executable dispatcher evidence was found"), summary.pathRelations, summary.selectedDispatchers,
             )
         }
         solveEffects()
@@ -103,7 +103,14 @@ internal class ProjectGraphSolver {
         ProgressManager.checkCanceled()
         return when (effect) {
             is Effect.Work -> effect.summary
-            is Effect.ContextSelection -> evaluate(effect.effect, summaries).let { EffectSummary(it.dispatchers, it.pathRelations, true) }
+            is Effect.ContextSelection -> evaluate(effect.effect, summaries).let {
+                EffectSummary(
+                    it.dispatchers,
+                    it.pathRelations,
+                    it.selectedDispatchers.join(effect.selectedDispatchers)
+                        .join(DispatcherSet(unknownReasons = it.dispatchers.unknownReasons)),
+                )
+            }
             is Effect.Invoke -> summaries[effect.target]?.let {
                 if (it.dispatchers.isEmpty) it else it.substitute(effect.context)
             } ?: unknown("Callee was outside the analyzed graph")
@@ -113,7 +120,7 @@ internal class ProjectGraphSolver {
                 if (joined.dispatchers.known.size > 1 && (effect.branch || children.size > 1)) EffectSummary(
                     joined.dispatchers,
                     joined.pathRelations + if (effect.branch) PathRelation.BRANCH_ALTERNATIVES else PathRelation.CONTEXT_SWITCH,
-                    joined.setsDispatcher,
+                    joined.selectedDispatchers,
                 ) else joined
             }
         }

@@ -21,14 +21,25 @@ import java.awt.Cursor
 import java.util.EnumSet
 
 internal object BadgePresentation {
-    fun segments(summary: EffectSummary, declaration: Boolean): List<BadgeSegment> {
-        val segments = summary.badgeSegments().map { segment ->
+    fun segments(
+        summary: EffectSummary,
+        declaration: Boolean,
+        dispatcherChangesOnly: Boolean = false,
+    ): List<BadgeSegment> {
+        val segments = summary.badgeSegments().filter { segment ->
+            declaration || !dispatcherChangesOnly ||
+                segment.dispatcher in summary.selectedDispatchers.known ||
+                (segment.dispatcher == null && summary.selectedDispatchers.hasUnknown)
+        }.map { segment ->
             if (segment.dispatcher == Dispatcher.Inherited) {
                 BadgeSegment(null, "Unknown", false)
             } else {
                 segment.copy(partial = !declaration && segment.partial)
             }
-        }.distinct()
+        }.distinct().toMutableList()
+        if (!declaration && dispatcherChangesOnly && summary.selectedDispatchers.hasUnknown && segments.none { it.dispatcher == null }) {
+            segments += BadgeSegment(null, "Unknown", false)
+        }
         return segments.ifEmpty { listOf(BadgeSegment(null, "Unknown", false)) }
     }
 
@@ -40,16 +51,18 @@ internal object BadgePresentation {
         declaration: Boolean,
         isCurrentAnalysis: () -> Boolean = { false },
         navigateDispatcher: ((Dispatcher, List<DispatcherOrigin>, () -> Boolean) -> Unit)? = null,
+        dispatcherChangesOnly: Boolean = false,
     ): InlayPresentation {
         val dark = ColorUtil.isDark(editor.colorsScheme.defaultBackground)
         val prefix = if (declaration) "called within Dispatcher " else "Dispatcher "
         val parts = mutableListOf(factory.smallTextWithoutBackground(prefix))
-        segments(summary, declaration).forEachIndexed { index, segment ->
+        val evidence = if (!declaration && dispatcherChangesOnly) summary.selectedDispatchers else summary.dispatchers
+        segments(summary, declaration, dispatcherChangesOnly).forEachIndexed { index, segment ->
             if (index > 0) parts += factory.smallTextWithoutBackground(" | ")
             val color = BadgeColor.forDispatcher(segment.dispatcher)
             val name = ColoredTextPresentation(factory.smallTextWithoutBackground(segment.label), color.color(dark))
             val dispatcher = segment.dispatcher
-            val origins = dispatcher?.let(summary.dispatchers.origins::get).orEmpty().sortedWith(originOrder)
+            val origins = dispatcher?.let(evidence.origins::get).orEmpty().sortedWith(originOrder)
             if (dispatcher != null && origins.isNotEmpty()) {
                 val navigate: (Dispatcher, List<DispatcherOrigin>, () -> Boolean) -> Unit =
                     navigateDispatcher ?: { _, targetOrigins, current ->
@@ -116,9 +129,15 @@ internal object BadgePresentation {
                 if (callSiteMode == CallSiteBadgeMode.DISPATCHER_CHANGES && !badge.summary.setsDispatcher) {
                     return@forEach
                 }
+                val selectionUncertainty = if (callSiteMode == CallSiteBadgeMode.DISPATCHER_CHANGES) {
+                    badge.summary.selectedDispatchers.unknownReasons - badge.summary.dispatchers.unknownReasons
+                } else emptySet()
+                val tooltip = if (selectionUncertainty.isEmpty()) badge.tooltip else
+                    badge.tooltip + " Dispatcher selection is uncertain: " + selectionUncertainty.sorted().joinToString(". ")
                 val presentation = create(
-                    factory, editor, badge.summary, badge.tooltip, false,
+                    factory, editor, badge.summary, tooltip, false,
                     isCurrentAnalysis = currentResult,
+                    dispatcherChangesOnly = callSiteMode == CallSiteBadgeMode.DISPATCHER_CHANGES,
                 )
                 sink.addInlineElement(offset, true, factory.inset(presentation, left = 4), false)
             }

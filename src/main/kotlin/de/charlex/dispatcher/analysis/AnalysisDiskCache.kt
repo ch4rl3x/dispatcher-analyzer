@@ -162,6 +162,7 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
                     }
                     is Effect.ContextSelection -> {
                         output.writeByte(EFFECT_CONTEXT_SELECTION)
+                        writeDispatcherSet(node.selectedDispatchers)
                         pending.addLast(node.effect)
                     }
                     is Effect.Group -> {
@@ -177,7 +178,7 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
         private fun writeSummary(summary: EffectSummary) {
             writeDispatcherSet(summary.dispatchers)
             writeSorted(summary.pathRelations, compareBy { it.ordinal }) { output.writeByte(it.ordinal) }
-            output.writeBoolean(summary.setsDispatcher)
+            writeDispatcherSet(summary.selectedDispatchers)
         }
 
         private fun writeDispatcherSet(dispatcherSet: DispatcherSet) {
@@ -319,7 +320,7 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
                     when (input.readUnsignedByte()) {
                         EFFECT_WORK -> completed = Effect.Work(readSummary())
                         EFFECT_INVOKE -> completed = Effect.Invoke(readFunctionKey(), readDispatcherSet())
-                        EFFECT_CONTEXT_SELECTION -> frames.addLast(EffectFrame.Selection)
+                        EFFECT_CONTEXT_SELECTION -> frames.addLast(EffectFrame.Selection(readDispatcherSet()))
                         EFFECT_GROUP -> {
                             val branch = input.readBoolean()
                             val childCount = readCount(minimumBytesPerItem = 1)
@@ -332,9 +333,9 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
                 while (completed != null) {
                     val frame = frames.lastOrNull() ?: return completed
                     when (frame) {
-                        EffectFrame.Selection -> {
+                        is EffectFrame.Selection -> {
                             frames.removeLast()
-                            completed = Effect.ContextSelection(completed)
+                            completed = Effect.ContextSelection(completed, frame.selectedDispatchers)
                         }
                         is EffectFrame.Group -> {
                             frame.children += completed
@@ -360,7 +361,7 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
                     else -> throw IOException("Invalid path relation tag: $ordinal")
                 }
             }
-            return EffectSummary(dispatchers, relations, input.readBoolean())
+            return EffectSummary(dispatchers, relations, readDispatcherSet())
         }
 
         private fun readDispatcherSet(): DispatcherSet {
@@ -457,7 +458,7 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
     }
 
     private sealed interface EffectFrame {
-        data object Selection : EffectFrame
+        data class Selection(val selectedDispatchers: DispatcherSet) : EffectFrame
         class Group(val branch: Boolean, var remaining: Int, val children: MutableList<Effect> = mutableListOf()) : EffectFrame
     }
 
@@ -487,7 +488,7 @@ internal class AnalysisDiskCache(projectDirectory: Path) {
 
     companion object {
         private const val MAGIC = 0x44414E41
-        private const val VERSION = 2
+        private const val VERSION = 3
         private const val IO_CHUNK_SIZE = 16 * 1024
         private const val DIGEST_LENGTH = 32
 

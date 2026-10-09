@@ -18,6 +18,7 @@ import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase
 import de.charlex.dispatcher.analysis.DispatcherAnalysisListener
 import de.charlex.dispatcher.analysis.DispatcherAnalysisService
 import de.charlex.dispatcher.model.Dispatcher
+import de.charlex.dispatcher.model.EffectSummary
 import org.jetbrains.kotlin.psi.KtFile
 import org.junit.Assert.assertNotEquals
 import java.io.File
@@ -38,6 +39,8 @@ class DispatcherInlayLifecycleTest : BasePlatformTestCase() {
                 DispatcherHintSettings(callSiteMode = CallSiteBadgeMode.ALL, onlyInFunctionContainingCaret = true),
             )
             val source = """
+                import kotlinx.coroutines.CoroutineScope
+                import kotlinx.coroutines.launch
                 import kotlinx.coroutines.Dispatchers
                 import kotlinx.coroutines.delay
                 import kotlinx.coroutines.withContext
@@ -49,7 +52,8 @@ class DispatcherInlayLifecycleTest : BasePlatformTestCase() {
                         readFromDisk()
                     }
                 }
-                suspend fun entry() = mixedWorkload()
+                private suspend fun entry() = mixedWorkload()
+                fun start() { CoroutineScope(Dispatchers.Main).launch { entry() } }
             """.trimIndent()
             val file = myFixture.addFileToProject("TrailingLambdaBadges.kt", source) as KtFile
             myFixture.configureFromExistingVirtualFile(file.virtualFile)
@@ -92,10 +96,16 @@ class DispatcherInlayLifecycleTest : BasePlatformTestCase() {
             editor.caretModel.moveToOffset(caller - 1)
             myFixture.doHighlighting()
             awaitInlineOffsets(editor, source.length) { caller in it && header !in it && lambdaEnd !in it }
-            val initialCallerSummary = ReadAction.compute<Set<Dispatcher>, RuntimeException> {
-                analysis.requestAnalysis(file).calls.getValue(caller).summary.dispatchers.known
+            val initialCallerSummary = ReadAction.compute<EffectSummary, RuntimeException> {
+                analysis.requestAnalysis(file).calls.getValue(caller).summary
             }
-            assertEquals(setOf(Dispatcher.IO), initialCallerSummary)
+            assertEquals(setOf(Dispatcher.Main, Dispatcher.IO), initialCallerSummary.dispatchers.known)
+            assertEquals(setOf(Dispatcher.IO), initialCallerSummary.selectedDispatchers.known)
+            assertEquals(
+                listOf("IO"),
+                BadgePresentation.segments(initialCallerSummary, false, true).map { it.label },
+            )
+            assertTrue(BadgePresentation.segments(initialCallerSummary, false, true).single().partial)
 
             val revised = source.replace("Dispatchers.IO", "Dispatchers.Default")
             WriteCommandAction.runWriteCommandAction(project) {
@@ -117,10 +127,16 @@ class DispatcherInlayLifecycleTest : BasePlatformTestCase() {
             awaitInlineOffsets(editor, revised.length) {
                 revisedCaller in it && caller !in it && revisedHeader !in it && revisedLambdaEnd !in it
             }
-            val revisedCallerSummary = ReadAction.compute<Set<Dispatcher>, RuntimeException> {
-                analysis.requestAnalysis(file).calls.getValue(revisedCaller).summary.dispatchers.known
+            val revisedCallerSummary = ReadAction.compute<EffectSummary, RuntimeException> {
+                analysis.requestAnalysis(file).calls.getValue(revisedCaller).summary
             }
-            assertEquals(setOf(Dispatcher.Default), revisedCallerSummary)
+            assertEquals(setOf(Dispatcher.Main, Dispatcher.Default), revisedCallerSummary.dispatchers.known)
+            assertEquals(setOf(Dispatcher.Default), revisedCallerSummary.selectedDispatchers.known)
+            assertEquals(
+                listOf("Default"),
+                BadgePresentation.segments(revisedCallerSummary, false, true).map { it.label },
+            )
+            assertTrue(BadgePresentation.segments(revisedCallerSummary, false, true).single().partial)
             assertEquals(declarationCount, editor.inlayModel.getBlockElementsInRange(0, revised.length).size)
             assertEquals(revised, editor.document.text)
 

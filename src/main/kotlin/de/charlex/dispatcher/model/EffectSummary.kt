@@ -16,8 +16,12 @@ data class BadgeSegment(
 class EffectSummary(
     val dispatchers: DispatcherSet,
     pathRelations: Set<PathRelation> = emptySet(),
-    val setsDispatcher: Boolean = false,
+    /** Explicit synchronous selections and unresolved work inside their regions. */
+    val selectedDispatchers: DispatcherSet = DispatcherSet.EMPTY,
 ) {
+    val setsDispatcher: Boolean
+        get() = !selectedDispatchers.isEmpty
+
     val pathRelations: Set<PathRelation> = java.util.Collections.unmodifiableSet(
         LinkedHashSet(pathRelations),
     )
@@ -25,13 +29,13 @@ class EffectSummary(
     fun join(other: EffectSummary): EffectSummary = EffectSummary(
         dispatchers.join(other.dispatchers),
         pathRelations + other.pathRelations,
-        setsDispatcher || other.setsDispatcher,
+        selectedDispatchers.join(other.selectedDispatchers),
     )
 
     fun substitute(inheritedContexts: DispatcherSet): EffectSummary = EffectSummary(
         dispatchers.substitute(inheritedContexts),
         pathRelations,
-        setsDispatcher,
+        selectedDispatchers,
     )
 
     /** Known dispatchers are partial only when another distinct known identity is proven. */
@@ -53,12 +57,12 @@ class EffectSummary(
 
     override fun equals(other: Any?): Boolean =
         other is EffectSummary && dispatchers == other.dispatchers && pathRelations == other.pathRelations &&
-            setsDispatcher == other.setsDispatcher
+            selectedDispatchers == other.selectedDispatchers
 
-    override fun hashCode(): Int = 31 * (31 * dispatchers.hashCode() + pathRelations.hashCode()) + setsDispatcher.hashCode()
+    override fun hashCode(): Int = 31 * (31 * dispatchers.hashCode() + pathRelations.hashCode()) + selectedDispatchers.hashCode()
 
     override fun toString(): String =
-        "EffectSummary(dispatchers=$dispatchers, pathRelations=$pathRelations, setsDispatcher=$setsDispatcher)"
+        "EffectSummary(dispatchers=$dispatchers, pathRelations=$pathRelations, selectedDispatchers=$selectedDispatchers)"
 
     companion object {
         val EMPTY = EffectSummary(DispatcherSet.EMPTY)

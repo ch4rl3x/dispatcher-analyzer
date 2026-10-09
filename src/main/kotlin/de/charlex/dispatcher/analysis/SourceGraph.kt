@@ -261,7 +261,7 @@ internal class SourceGraph(
         private fun unknown(reason: String) = work(DispatcherSet.unknown(reason))
         private fun group(effects: List<Effect>): Effect = Effect.Group(effects)
         private fun contextSelection(effect: Effect, selected: ContextValue): Effect =
-            if (selected.replaces || selected.dispatchers.hasUnknown) Effect.ContextSelection(effect) else effect
+            if (selected.replaces || selected.dispatchers.hasUnknown) Effect.ContextSelection(effect, selected.dispatchers) else effect
         private fun ensureExecution(effect: Effect, context: DispatcherSet): Effect =
             if (isEmpty(effect)) work(context) else effect
         private fun isEmpty(effect: Effect): Boolean = when (effect) {

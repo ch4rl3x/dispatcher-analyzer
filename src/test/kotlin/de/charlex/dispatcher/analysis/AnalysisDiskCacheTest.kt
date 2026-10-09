@@ -91,14 +91,14 @@ class AnalysisDiskCacheTest {
     }
 
     @Test
-    fun cachesWithLegacyCallAnchorsAreDiscarded() = runBlocking {
-        val projectDirectory = Files.createTempDirectory("dispatcher-cache-legacy-anchors")
+    fun cachesWithoutDispatcherSelectionIdentitiesAreDiscarded() = runBlocking {
+        val projectDirectory = Files.createTempDirectory("dispatcher-cache-legacy-selections")
         try {
             val cache = AnalysisDiskCache(projectDirectory)
             val expected = sampleAnalysis()
             cache.save(expected)
             val payload = Files.readAllBytes(cache.path).dropLast(32).toByteArray()
-            ByteBuffer.wrap(payload).putInt(4, 1)
+            ByteBuffer.wrap(payload).putInt(4, 2)
             Files.write(cache.path, payload + MessageDigest.getInstance("SHA-256").digest(payload))
 
             assertNull(cache.load(expected.environmentFingerprint))
@@ -152,7 +152,7 @@ class AnalysisDiskCacheTest {
     }
 
     @Test
-    fun codecRetainsOriginProvenanceAndDispatcherSelectionFlag() = runBlocking {
+    fun codecRetainsOriginProvenanceAndDispatcherSelections() = runBlocking {
         val projectDirectory = Files.createTempDirectory("dispatcher-cache-provenance")
         try {
             val cache = AnalysisDiskCache(projectDirectory)
@@ -163,6 +163,8 @@ class AnalysisDiskCacheTest {
             val cachedIo = loaded.summaries.values.first().dispatchers.origins.getValue(Dispatcher.IO)
             assertEquals(setOf(DispatcherOrigin("file:///project/src/Worker.kt", 23, 2, "withContext(Dispatchers.IO)")), cachedIo)
             assertTrue(loaded.summaries.values.first().setsDispatcher)
+            assertEquals(setOf(Dispatcher.IO), loaded.summaries.values.first().selectedDispatchers.known)
+            assertEquals(cachedIo, loaded.summaries.values.first().selectedDispatchers.origins[Dispatcher.IO])
             assertTrue(loaded.incoming.values.first().origins.containsKey(Dispatcher.Main))
             assertFalse(loaded.summaries.values.first().pathRelations.isEmpty())
         } finally {
@@ -178,13 +180,14 @@ class AnalysisDiskCacheTest {
             known = setOf(Dispatcher.Main),
             origins = mapOf(Dispatcher.Main to setOf(mainOrigin)),
         )
+        val selectedDispatchers = DispatcherSet(
+            known = setOf(Dispatcher.IO),
+            origins = mapOf(Dispatcher.IO to setOf(ioOrigin)),
+        )
         val selected = EffectSummary(
-            DispatcherSet(
-                known = setOf(Dispatcher.IO),
-                origins = mapOf(Dispatcher.IO to setOf(ioOrigin)),
-            ),
+            incoming.join(selectedDispatchers),
             setOf(PathRelation.CONTEXT_SWITCH),
-            setsDispatcher = true,
+            selectedDispatchers = selectedDispatchers,
         )
         val effect = Effect.Group(
             listOf(
@@ -194,6 +197,7 @@ class AnalysisDiskCacheTest {
                         listOf(Effect.Invoke(worker, incoming), Effect.Work(selected)),
                         branch = true,
                     ),
+                    selectedDispatchers,
                 ),
             ),
         )

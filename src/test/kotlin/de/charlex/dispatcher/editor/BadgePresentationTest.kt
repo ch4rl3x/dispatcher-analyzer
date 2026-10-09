@@ -46,6 +46,46 @@ class BadgePresentationTest {
         assertEquals(listOf("Unknown"), BadgePresentation.segments(inherited, false).map { it.label })
     }
 
+    @Test
+    fun filteredEntriesPreserveSelectedUnknownAndDoNotInventFullCoverage() {
+        val unknown = DispatcherSet.unknown("Unresolved dispatcher")
+        val summary = EffectSummary(
+            DispatcherSet.of(Dispatcher.Main, Dispatcher.IO).join(unknown),
+            selectedDispatchers = DispatcherSet.of(Dispatcher.IO).join(unknown),
+        )
+        val segments = BadgePresentation.segments(summary, false, dispatcherChangesOnly = true)
+        assertEquals(listOf("IO", "Unknown"), segments.map { it.label })
+        assertTrue(segments.first().partial)
+        assertFalse(segments.last().partial)
+    }
+
+    @Test
+    fun filteredEntriesOmitUnknownInheritedContextButKeepUnknownSelectedWork() {
+        val inheritedUnknown = EffectSummary(
+            DispatcherSet.of(Dispatcher.IO).join(DispatcherSet.unknown("Unknown caller")),
+            selectedDispatchers = DispatcherSet.of(Dispatcher.IO),
+        )
+        assertEquals(
+            listOf("IO"),
+            BadgePresentation.segments(inheritedUnknown, false, true).map { it.label },
+        )
+        val unknownBody = EffectSummary(
+            DispatcherSet.unknown("Opaque body"),
+            selectedDispatchers = DispatcherSet.of(Dispatcher.IO),
+        )
+        assertEquals(listOf("Unknown"), BadgePresentation.segments(unknownBody, false, true).map { it.label })
+    }
+
+    @Test
+    fun filteredEntriesKeepUnknownSelectionEvenWhenNestedWorkIsKnown() {
+        val summary = EffectSummary(
+            DispatcherSet.of(Dispatcher.IO),
+            selectedDispatchers = DispatcherSet.of(Dispatcher.IO).join(DispatcherSet.unknown("Unresolved outer dispatcher")),
+        )
+        assertEquals(listOf("IO", "Unknown"), BadgePresentation.segments(summary, false, true).map { it.label })
+        assertEquals(listOf("IO"), BadgePresentation.segments(summary, false).map { it.label })
+    }
+
     private fun contrast(foreground: Color, background: Color): Double {
         fun luminance(color: Color): Double {
             fun channel(value: Int): Double {

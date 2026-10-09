@@ -1,5 +1,6 @@
 package de.charlex.dispatcher.analysis
 
+import de.charlex.dispatcher.model.DispatcherSet
 import de.charlex.dispatcher.model.EffectSummary
 
 data class BadgeResult(val summary: EffectSummary, val tooltip: String)
@@ -22,7 +23,7 @@ internal data class SourceCall(
 
 internal sealed interface Effect {
     data class Work(val summary: EffectSummary) : Effect
-    data class ContextSelection(val effect: Effect) : Effect
+    data class ContextSelection(val effect: Effect, val selectedDispatchers: DispatcherSet) : Effect
     data class Invoke(
         val target: FunctionKey,
         val context: de.charlex.dispatcher.model.DispatcherSet,

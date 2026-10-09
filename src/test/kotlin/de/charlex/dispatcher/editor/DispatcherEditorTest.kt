@@ -94,7 +94,7 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         val unresolvedOffset = source.indexOf("unresolved()") + "unresolved()".length
         val inherited = badge(Dispatcher.Main)
         val explicit = BadgeResult(
-            EffectSummary(DispatcherSet.of(Dispatcher.IO), setsDispatcher = true),
+            EffectSummary(DispatcherSet.of(Dispatcher.IO), selectedDispatchers = DispatcherSet.of(Dispatcher.IO)),
             "The callee selects IO.",
         )
         val unresolved = BadgeResult(
@@ -132,6 +132,59 @@ class DispatcherEditorTest : BasePlatformTestCase() {
         assertEquals(source, myFixture.editor.document.text)
     }
 
+    fun testFilteredMixedWorkloadKeepsPartialAndOnlySelectedOrigins() {
+        val source = "suspend fun entry() { mixedWorkload() }"
+        myFixture.configureByText("Badge.kt", source)
+        val offset = source.indexOf("mixedWorkload()") + "mixedWorkload()".length
+        val callerOrigin = DispatcherOrigin("file:///project/Caller.kt", 10, 2, "caller IO")
+        val selectedOrigin = DispatcherOrigin("file:///project/Work.kt", 20, 3, "selected IO")
+        val selected = DispatcherSet(
+            known = setOf(Dispatcher.IO),
+            origins = mapOf(Dispatcher.IO to setOf(selectedOrigin)),
+        )
+        val summary = EffectSummary(
+            DispatcherSet(
+                known = setOf(Dispatcher.Main, Dispatcher.IO),
+                origins = mapOf(Dispatcher.IO to setOf(callerOrigin, selectedOrigin)),
+            ),
+            selectedDispatchers = selected,
+        )
+        val result = FileAnalysis(
+            declarations = mapOf(0 to badge(Dispatcher.Main)),
+            calls = mapOf(offset to BadgeResult(summary, "Mixed workload.")),
+        )
+        val all = RecordingSink()
+        render(result, DispatcherHintSettings(callSiteMode = CallSiteBadgeMode.ALL), all)
+        assertEquals("Dispatcher Main (partial) | IO (partial)", all.inline.single().text.trim())
+        val filtered = RecordingSink()
+        render(result, DispatcherHintSettings(callSiteMode = CallSiteBadgeMode.DISPATCHER_CHANGES), filtered)
+        assertEquals(listOf(offset), filtered.inline.map { it.offset })
+        assertEquals("Dispatcher IO (partial)", filtered.inline.single().text.trim())
+        assertEquals(all.blocks, filtered.blocks)
+        assertEquals(source, myFixture.editor.document.text)
+
+        val factory = PresentationFactory(myFixture.editor)
+        var navigated = emptyList<DispatcherOrigin>()
+        val presentation = BadgePresentation.create(
+            factory, myFixture.editor, summary, "Mixed workload.", declaration = false,
+            isCurrentAnalysis = { true },
+            navigateDispatcher = { dispatcher, origins, _ ->
+                assertEquals(Dispatcher.IO, dispatcher)
+                navigated = origins
+            },
+            dispatcherChangesOnly = true,
+        )
+        val prefixWidth = factory.smallTextWithoutBackground("Dispatcher ").width
+        val ioWidth = factory.smallTextWithoutBackground("IO").width
+        clickAt(presentation, 3 + prefixWidth + ioWidth / 2, moveFirst = false)
+        assertEquals(listOf(selectedOrigin), navigated)
+        val dark = ColorUtil.isDark(myFixture.editor.colorsScheme.defaultBackground)
+        assertEquals(
+            listOf("IO" to BadgeColor.IO.color(dark), " (partial)" to BadgeColor.IO.color(dark)),
+            coloredEntries(presentation),
+        )
+    }
+
     fun testCaretScopeShowsOnlyInnermostFunctionCallsAndKeepsDeclarations() {
         val source = """
             suspend fun outer() {
@@ -149,7 +202,7 @@ class DispatcherEditorTest : BasePlatformTestCase() {
             source.indexOf(it) + it.length
         }
         val callBadge = BadgeResult(
-            EffectSummary(DispatcherSet.of(Dispatcher.IO), setsDispatcher = true),
+            EffectSummary(DispatcherSet.of(Dispatcher.IO), selectedDispatchers = DispatcherSet.of(Dispatcher.IO)),
             "The call selects IO.",
         )
         val result = FileAnalysis(
