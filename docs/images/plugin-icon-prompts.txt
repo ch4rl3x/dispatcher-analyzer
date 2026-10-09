@@ -1,0 +1,29 @@
+Dispatcher Analyzer plugin icon concept
+
+Tool: built-in Imagegen.
+Reference: readme-hero-dark.png (right-hand code tile and dispatcher routes).
+Output: plugin-icon-concept.png.
+Status: raster design concept; not yet a packaged Marketplace SVG.
+
+JetBrains requires a 40 by 40 SVG with transparent perimeter padding,
+packaged as META-INF/pluginIcon.svg. Review the motif at 40 and 80 pixels
+when recreating the final vector artwork. Optional dark variant:
+META-INF/pluginIcon_dark.svg.
+Source: https://plugins.jetbrains.com/docs/intellij/plugin-icon-file.html
+
+INITIAL PROMPT
+
+Use case: logo-brand
+Asset type: first plugin icon design for Dispatcher Analyzer, based on the attached existing README hero banner.
+Input image: reference for brand identity and motif, not an edit target. Use only the right-hand illustration as inspiration.
+Primary request: produce one polished square standalone icon with an actual transparent background. Distill the hero's code tile branching into three colored dispatcher routes into a compact bold mark that reads well at 40 and 80 pixels.
+Composition: centered compact horizontal symbol within a square 1024x1024 canvas with generous transparent perimeter. At left a large dark slate rounded square tile containing crisp white curly braces { }. From its right edge three thick clean smooth routes fan out to the right: coral red on top, warm golden yellow in the middle, mint green at bottom. Each route ends in a substantial matching filled round terminal. Top route curves upward, middle runs straight, bottom curves downward. Closely knit balanced silhouette, code tile occupies roughly left half and routes occupy right half. Overall visible mark roughly 85% canvas width and 68% height. Preserve this source-tile and three-branch identity from the banner.
+Style: crisp minimal vector-like brand mark, precise geometry, mostly flat solid colors, extremely restrained depth on slate tile only. Strong clear strokes suitable for eventual recreation as a small SVG. Beautiful professional developer tool identity. Neutral slate border on the tile ensures visibility on light and dark UI.
+Colors: slate #253241 with lighter slate edge #66798e and white braces; coral #f36e77, gold #efbc45, green #52cf96.
+Text: only the curly brace glyph pair, no product title, no labels.
+Avoid: surrounding app-icon backplate, banner background, dots grid, destination pills or words, gradients in routes, glow, shadows outside the mark, fine hairlines, extra branches, arrows, official JetBrains/Android/Kotlin logos, watermark. Transparent outside the symbol. One icon only; no contact sheet or presentation mockup.
+
+REFINEMENT PROMPT
+
+undefined
+
